@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A player profile in the AI Debug Detective game.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "xp": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number"
+        },
+        "coins": {
+          "type": "number"
+        },
+        "streak": {
+          "type": "number"
+        },
+        "casesSolved": {
+          "type": "number"
+        },
+        "isAdmin": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "username", "email", "xp", "level", "coins", "streak", "casesSolved", "createdAt"]
+    },
+    "Case": {
+      "title": "Case",
+      "description": "A debugging case in the game.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "story": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["Beginner", "Intermediate", "Advanced", "Expert"]
+        },
+        "language": {
+          "type": "string",
+          "enum": ["Java", "Python", "C++", "JavaScript"]
+        },
+        "brokenCode": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "expectedBehavior": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "actualBehavior": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "xpReward": {
+          "type": "number"
+        },
+        "coinReward": {
+          "type": "number"
+        },
+        "timeLimit": {
+          "type": "number"
+        },
+        "worldId": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "story", "difficulty", "language", "brokenCode", "expectedBehavior", "actualBehavior", "xpReward", "coinReward"]
+    },
+    "Attempt": {
+      "title": "Attempt",
+      "description": "A user's attempt at solving a case.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "caseId": {
+          "type": "string"
+        },
+        "submittedCode": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "score": {
+          "type": "number"
+        },
+        "hintsUsed": {
+          "type": "number"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "caseId", "submittedCode", "score", "hintsUsed", "completed", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Player profiles. Keyed by Firebase Auth UID."
+    },
+    "/cases/{caseId}": {
+      "schema": {
+        "$ref": "#/entities/Case"
+      },
+      "description": "The debugging cases."
+    },
+    "/attempts/{attemptId}": {
+      "schema": {
+        "$ref": "#/entities/Attempt"
+      },
+      "description": "User case attempts."
+    }
+  }
+}
