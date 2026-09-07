@@ -31,7 +31,7 @@ export function Investigation() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setCode(data.brokenCode);
-        return { id: docSnap.id, ...data };
+        return { id: docSnap.id, ...data } as any;
       }
       throw new Error("Case not found");
     },
