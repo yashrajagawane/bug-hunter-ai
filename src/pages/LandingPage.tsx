@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
@@ -18,8 +18,13 @@ export function LandingPage() {
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
   if (user) {
-    navigate('/dashboard');
     return null;
   }
 

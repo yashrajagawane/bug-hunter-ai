@@ -12,6 +12,27 @@ const ai = new GoogleGenAI({
   }
 });
 
+async function callGeminiWithRetry(modelName: string, contents: any, config?: any, retries = 3): Promise<any> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await ai.models.generateContent({
+        model: modelName,
+        contents,
+        config
+      });
+    } catch (error: any) {
+      if (error?.status === 503 || error?.message?.includes("503") || error?.message?.includes("high demand") || error?.status === "UNAVAILABLE") {
+        if (i < retries - 1) {
+          console.warn(`Gemini API 503, retrying in ${Math.pow(2, i)}s...`);
+          await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -32,13 +53,13 @@ Current code:
 ${code}
 \`\`\``;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
+      const response = await callGeminiWithRetry(
+        "gemini-3.1-flash",
+        prompt,
+        {
           systemInstruction: "You are an educational debugging mentor. Keep hints concise, encouraging, and focused on helping the student find the bug themselves.",
         }
-      });
+      );
       
       res.json({ text: response.text });
     } catch (error: any) {
@@ -68,10 +89,10 @@ ${expectedBehavior}
 
 Evaluate if the solution is correct, efficient, and fixes the bug.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
+      const response = await callGeminiWithRetry(
+        "gemini-3.1-flash",
+        prompt,
+        {
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -87,7 +108,7 @@ Evaluate if the solution is correct, efficient, and fixes the bug.`;
             required: ["score", "solutionCorrect", "testsPassed", "testsFailed", "feedback", "timeComplexity", "spaceComplexity"]
           }
         }
-      });
+      );
       
       res.json(JSON.parse(response.text!));
     } catch (error: any) {
@@ -107,13 +128,13 @@ ${code}
 \`\`\`
 Student Question: ${message}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
+      const response = await callGeminiWithRetry(
+        "gemini-3.1-flash",
+        prompt,
+        {
           systemInstruction: "You are Detective AI. Answer the student's question about the code without directly giving away the solution. Be helpful and professional.",
         }
-      });
+      );
       
       res.json({ text: response.text });
     } catch (error: any) {
