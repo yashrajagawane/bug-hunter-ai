@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { motion } from 'framer-motion';
 
 export function Investigation() {
@@ -245,17 +245,17 @@ export function Investigation() {
   };
 
   if (isCaseLoading || !currentCase) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#020617] text-cyan-400 font-mono text-sm uppercase tracking-widest animate-pulse">Loading Case File...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#050505] text-cyan-400 font-mono text-sm uppercase tracking-widest animate-pulse">Loading Case File...</div>;
   }
 
-  // Helper auth import for updateDoc
-  const { auth } = require('../lib/firebase');
-
   return (
-    <div className="h-screen flex flex-col bg-[#020617] text-slate-200 font-sans overflow-hidden">
-      
+    <div className="h-screen flex flex-col bg-[#050505] text-slate-300 font-sans overflow-hidden relative">
+      {/* Ambient background orbs for glassmorphism */}
+      <div className="absolute top-0 left-1/4 w-[50%] h-[50%] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
+
       {/* Top Navbar */}
-      <nav className="h-14 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between px-4 shrink-0">
+      <nav className="h-14 border-b border-white/[0.05] bg-black/40 backdrop-blur-xl flex items-center justify-between px-4 shrink-0 relative z-10">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/dashboard')} className="text-slate-500 hover:text-white transition-colors">
             <ArrowLeft size={20} />
@@ -267,18 +267,18 @@ export function Investigation() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-           <button onClick={() => setIsDiffMode(!isDiffMode)} className={`px-4 py-1.5 text-[10px] font-bold rounded uppercase tracking-widest transition-colors ${isDiffMode ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+           <button onClick={() => setIsDiffMode(!isDiffMode)} className={`px-4 py-1.5 text-[10px] font-bold rounded uppercase tracking-widest transition-all ${isDiffMode ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-white/[0.05] text-slate-300 border border-white/10 hover:bg-white/[0.1]'}`}>
              {isDiffMode ? 'Exit Diff View' : 'Diff View'}
            </button>
         </div>
       </nav>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative z-10">
         
         {/* Left Panel - Case Info */}
-        <div className="w-80 border-r border-slate-800 bg-slate-900/20 flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
-          <div className="p-4 border-b border-slate-800">
+        <div className="w-80 border-r border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 overflow-y-auto custom-scrollbar shadow-xl">
+          <div className="p-4 border-b border-white/[0.05]">
             <div className="mb-4">
               <span className="text-[10px] font-mono text-cyan-400 block mb-1 uppercase tracking-widest">CASE BRIEF</span>
               <h2 className="text-xl font-extrabold text-white leading-tight uppercase tracking-tighter italic">{currentCase.title}</h2>
@@ -305,9 +305,9 @@ export function Investigation() {
               <p className="text-sm text-slate-300 leading-relaxed italic">'{currentCase.story}'</p>
             </div>
             
-            <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700">
-              <h4 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest">Expected Behavior</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">{currentCase.expectedBehavior}</p>
+            <div className="p-4 rounded-xl bg-black/40 border border-white/[0.05] shadow-inner">
+              <h4 className="text-[10px] uppercase font-bold text-cyan-400 mb-2 tracking-widest drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">Expected Behavior</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">{currentCase.expectedBehavior}</p>
             </div>
             
             <div>
@@ -318,8 +318,8 @@ export function Investigation() {
         </div>
 
         {/* Center Panel - Code Editor & Console */}
-        <div className="flex-1 flex flex-col min-w-0 bg-slate-950">
-          <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+        <div className="flex-1 flex flex-col min-w-0 bg-black/60 relative">
+          <div className="flex items-center justify-between px-4 py-2 bg-black/80 backdrop-blur-xl border-b border-white/[0.05]">
             <div className="flex items-center gap-2">
               <div className="flex gap-1.5 mr-4">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500/50"></div>
@@ -329,14 +329,14 @@ export function Investigation() {
               <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">Sandbox Environment</span>
             </div>
             <div className="flex gap-2">
-              <button className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded uppercase transition-colors" onClick={() => setCode(currentCase.brokenCode)}>Reset</button>
-              <button disabled={isExecuting} className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold rounded uppercase transition-colors flex items-center gap-1 disabled:opacity-50" onClick={handleRunCode}>
+              <button className="px-3 py-1 bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-slate-200 text-[10px] font-bold rounded uppercase transition-all" onClick={() => setCode(currentCase.brokenCode)}>Reset</button>
+              <button disabled={isExecuting} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white text-[10px] font-bold rounded uppercase transition-all flex items-center gap-1 disabled:opacity-50 shadow-[0_0_10px_rgba(34,211,238,0.4)]" onClick={handleRunCode}>
                 <Play size={10} /> {isExecuting ? 'Executing...' : 'Run Code'}
               </button>
             </div>
           </div>
           
-          <div className="flex-1 relative bg-[#0a0f1d]">
+          <div className="flex-1 relative bg-black/40 backdrop-blur-sm">
             {isDiffMode ? (
                <DiffEditor
                  height="100%"
@@ -359,9 +359,9 @@ export function Investigation() {
           </div>
           
           {/* Console / Test Results */}
-          <div className="h-40 border-t border-slate-800 bg-black/40 flex flex-col shrink-0">
-            <div className="flex items-center px-4 py-1 border-b border-slate-800 bg-slate-900/50">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest"><Terminal size={10} className="inline mr-1"/> Debug Terminal</span>
+          <div className="h-40 border-t border-white/[0.05] bg-black/80 backdrop-blur-xl flex flex-col shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+            <div className="flex items-center px-4 py-1 border-b border-white/[0.05] bg-white/[0.02]">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><Terminal size={10} className="inline mr-1"/> Debug Terminal</span>
             </div>
             <div className="flex-1 p-4 font-mono text-xs overflow-y-auto whitespace-pre-wrap text-slate-400">
               {consoleOutput}
@@ -370,7 +370,8 @@ export function Investigation() {
         </div>
 
         {/* Right Panel - AI Assistant */}
-        <div className="w-80 border-l border-slate-800 bg-slate-900/40 flex flex-col shrink-0 p-6">
+        <div className="w-80 border-l border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 p-6 shadow-2xl relative">
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <div className="mb-4">
              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2 mb-4">
               <Sparkles size={14} className="text-purple-400"/> Detective Toolkit
@@ -379,44 +380,44 @@ export function Investigation() {
           
           <div className="flex-1 overflow-y-auto flex flex-col gap-4 custom-scrollbar mb-4">
             {chatHistory.map((msg, idx) => (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className={`p-4 rounded-xl border ${msg.role === 'ai' ? 'border-purple-500/30 bg-purple-500/5' : 'bg-slate-800 border-slate-700 ml-4'}`}>
-                {msg.role === 'ai' && <h4 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest italic">Detective AI</h4>}
-                <p className="text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-wrap">{msg.text}</p>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className={`p-4 rounded-xl border backdrop-blur-md shadow-sm ${msg.role === 'ai' ? 'border-cyan-500/30 bg-cyan-500/10' : 'bg-black/40 border-white/[0.05] ml-4'}`}>
+                {msg.role === 'ai' && <h4 className="text-[10px] uppercase font-bold text-cyan-400 mb-2 tracking-widest italic drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">Detective AI</h4>}
+                <p className="text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">{msg.text}</p>
               </motion.div>
             ))}
             {isAiLoading && chatHistory[chatHistory.length - 1]?.role !== 'ai' && (
-              <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-500/5 animate-pulse">
-                <h4 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest italic">Detective AI</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">Analyzing code stream...</p>
+              <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 animate-pulse backdrop-blur-md">
+                <h4 className="text-[10px] uppercase font-bold text-cyan-400 mb-2 tracking-widest italic drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">Detective AI</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">Analyzing code stream...</p>
               </div>
             )}
             <div ref={chatEndRef} />
             
             <div className="mt-auto space-y-3 pt-4">
-              <button onClick={() => handleAskHint(1)} disabled={isAiLoading} className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-800 hover:border-cyan-500 transition-colors text-left group disabled:opacity-50">
+              <button onClick={() => handleAskHint(1)} disabled={isAiLoading} className="w-full flex items-center justify-between p-4 rounded-xl border border-white/[0.05] bg-black/40 hover:bg-white/[0.05] hover:border-cyan-500/50 transition-all text-left group disabled:opacity-50 backdrop-blur-md">
                 <div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-cyan-400">Request AI Hint</div>
-                  <div className="text-[10px] text-slate-500">Cost: 10 Coins</div>
+                  <div className="text-xs font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">Request AI Hint</div>
+                  <div className="text-[10px] text-slate-400 group-hover:text-slate-300">Cost: 10 Coins</div>
                 </div>
-                <Sparkles className="w-5 h-5 text-slate-500 group-hover:text-cyan-400" />
+                <Sparkles className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
               </button>
             </div>
           </div>
           
-          <div className="pt-4 border-t border-slate-800 mb-6">
+          <div className="pt-4 border-t border-white/[0.05] mb-6">
             <form onSubmit={handleChatSubmit} className="relative">
               <input 
                 type="text"
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 placeholder="Ask Detective AI..." 
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                className="w-full bg-black/60 border border-white/[0.05] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:bg-black/80 transition-all backdrop-blur-md"
                 disabled={isAiLoading}
               />
             </form>
           </div>
 
-          <button onClick={handleSubmitFinal} className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm uppercase tracking-tighter rounded-xl shadow-[0_10px_20px_rgba(8,145,178,0.3)] transition-all transform active:scale-95 flex items-center justify-center gap-2">
+          <button onClick={handleSubmitFinal} className="w-full py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-black text-sm uppercase tracking-tighter rounded-xl shadow-[0_10px_20px_rgba(8,145,178,0.4)] transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2">
              <CheckCircle2 size={18} /> Final Submission
           </button>
         </div>

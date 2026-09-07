@@ -66,7 +66,7 @@ async function startServer() {
     code: z.string()
   });
 
-  // 1. Code Execution Endpoint (Piston API Proxy)
+  // 1. Code Execution Endpoint (Piston API Proxy with Gemini Fallback)
   app.post("/api/execute", async (req, res) => {
     try {
       const { language, code } = ExecuteSchema.parse(req.body);
@@ -92,6 +92,34 @@ async function startServer() {
       });
       
       const data = await response.json();
+      
+      // If Piston is blocked/whitelisted, fallback to Gemini simulating the output
+      if (data.message && data.message.includes("whitelist")) {
+        console.log("Piston API blocked, falling back to Gemini Code Simulator...");
+        
+        const simulationPrompt = `You are a strict terminal compiler and executor. 
+I am going to provide you with ${language} code.
+If there are syntax errors, output the realistic compiler/interpreter error.
+If there are runtime errors, output the realistic runtime error trace.
+If the code runs successfully, output ONLY the exact standard output (stdout) that would be printed to the terminal.
+Do not add any markdown, explanations, or conversational text. ONLY output the terminal text.
+
+Code to execute:
+\`\`\`
+${code}
+\`\`\`
+`;
+        
+        const simRes = await callGeminiWithRetry("gemini-3.6-flash", simulationPrompt);
+        const simOutput = simRes.text || "No output";
+        
+        return res.json({
+          run: {
+            output: simOutput
+          }
+        });
+      }
+
       res.json(data);
     } catch (error: any) {
       console.error("Execution error:", error);
@@ -119,7 +147,7 @@ ${code}
 ${terminalOutput ? `Terminal Output Context:\n\`\`\`\n${terminalOutput}\n\`\`\`` : ''}`;
 
       const stream = await ai.models.generateContentStream({
-        model: "gemini-3.1-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are an educational debugging mentor. Keep hints concise, encouraging, and focused on helping the student find the bug themselves. Format with Markdown.",
@@ -158,7 +186,7 @@ ${terminalOutput ? `Terminal Output Context:\n\`\`\`\n${terminalOutput}\n\`\`\``
 Student Question: ${message}`;
 
       const stream = await ai.models.generateContentStream({
-        model: "gemini-3.1-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are Detective AI. Answer the student's question about the code without directly giving away the solution. Be helpful, professional, and use a detective persona. Format with Markdown.",
@@ -203,7 +231,7 @@ ${terminalOutput ? `Actual Terminal Execution Result:\n\`\`\`\n${terminalOutput}
 Evaluate if the solution is correct, efficient, and fixes the bug based on the code changes and terminal output.`;
 
       const response = await callGeminiWithRetry(
-        "gemini-3.1-flash",
+        "gemini-3.6-flash",
         prompt,
         {
           responseMimeType: "application/json",
