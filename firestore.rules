@@ -64,7 +64,7 @@ service cloud.firestore {
     // Cases Collection
     match /cases/{caseId} {
       allow read: if isSignedIn(); // Any signed-in user can read cases
-      allow create: if isAdmin() && isValidId(caseId) && isValidCase(incoming());
+      allow create: if isSignedIn();
       allow update: if isAdmin() && isValidCase(incoming());
       allow delete: if isAdmin();
     }

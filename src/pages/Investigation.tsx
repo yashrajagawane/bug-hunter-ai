@@ -1,123 +1,255 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Editor from '@monaco-editor/react';
-import { Terminal, ShieldAlert, CheckCircle, XCircle, Play, Sparkles, ArrowLeft } from 'lucide-react';
+import Editor, { DiffEditor } from '@monaco-editor/react';
+import { ArrowLeft, Sparkles, Terminal, Play, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-
-// Temporary mock data until DB is fully seeded
-const MOCK_CASE = {
-  id: 'demo',
-  title: 'The Broken Transaction Loop',
-  severity: 'CRITICAL',
-  language: 'java',
-  bugType: 'Array Index Error',
-  description: 'Customers are reporting incorrect transaction totals. Some transactions seem to be missing or causing the application to crash completely.',
-  symptoms: [
-    'java.lang.ArrayIndexOutOfBoundsException randomly appears in logs',
-    'Totals are miscalculated'
-  ],
-  expectedBehavior: 'Return the exact sum of all transaction values in the array.',
-  actualBehavior: 'Application crashes when accessing the final element, or calculates an incorrect sum.',
-  brokenCode: `public class TransactionProcessor {
-    public int calculateTotal(int[] transactions) {
-        int total = 0;
-        
-        for(int i = 0; i <= transactions.length; i++) {
-            total += transactions[i];
-        }
-        
-        return total;
-    }
-}`,
-  difficulty: 'Beginner',
-  xpReward: 500,
-  timeRemaining: '15:00'
-};
+import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { motion } from 'framer-motion';
 
 export function Investigation() {
   const { caseId } = useParams();
   const navigate = useNavigate();
-  const [code, setCode] = useState(MOCK_CASE.brokenCode);
-  const [activeTab, setActiveTab] = useState<'case' | 'ai'>('case');
-  const [consoleOutput, setConsoleOutput] = useState<string>('System ready. Awaiting code execution...\n');
-  const [chatHistory, setChatHistory] = useState<{role: 'ai'|'user', text: string}[]>([{role: 'ai', text: "Hello Detective. I'm ready to assist with this case. What would you like to do?"}]);
+  const { profile } = useAuthStore();
+  
+  const [code, setCode] = useState('');
+  const [consoleOutput, setConsoleOutput] = useState('System ready. Awaiting input...\n');
   const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [evaluation, setEvaluation] = useState<any>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [isDiffMode, setIsDiffMode] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const handleRunCode = () => {
-    setConsoleOutput(prev => prev + '> Compiling...\n> Running tests...\n');
-    setTimeout(() => {
-      if (code.includes('i < transactions.length')) {
-        setConsoleOutput(prev => prev + '> Tests PASSED [5/5]\n> Bug appears to be resolved!\n');
-      } else {
-        setConsoleOutput(prev => prev + '> java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5\n> Tests FAILED [0/5]\n');
+  const { data: currentCase, isLoading: isCaseLoading } = useQuery({
+    queryKey: ['case', caseId],
+    queryFn: async () => {
+      const docRef = doc(db, 'cases', caseId || '');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setCode(data.brokenCode);
+        return { id: docSnap.id, ...data };
       }
-    }, 1000);
+      throw new Error("Case not found");
+    },
+    enabled: !!caseId
+  });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, isAiLoading]);
+
+  const handleRunCode = async () => {
+    if (!currentCase) return;
+    setIsExecuting(true);
+    setConsoleOutput('Compiling and executing code in sandbox...\n');
+    
+    try {
+      const res = await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: currentCase.language,
+          code: code
+        })
+      });
+      
+      const result = await res.json();
+      if (result.compile && result.compile.output) {
+        setConsoleOutput(prev => prev + `[COMPILE ERROR]\n${result.compile.output}\n`);
+      } else if (result.run) {
+        setConsoleOutput(`[EXECUTION RESULT]\n${result.run.output}\n`);
+      } else {
+        setConsoleOutput(`[ERROR] execution failed.\n`);
+      }
+    } catch (e: any) {
+      setConsoleOutput(`[SYSTEM ERROR] Failed to connect to sandbox: ${e.message}\n`);
+      toast.error("Sandbox connection failed.");
+    } finally {
+      setIsExecuting(false);
+    }
   };
 
   const handleAskHint = async (level: number) => {
-    setActiveTab('ai');
-    const msg = `Requesting Hint Level ${level}...`;
-    setChatHistory(prev => [...prev, {role: 'user', text: msg}]);
+    if (!profile) return;
+    
+    if (profile.coins < 10) {
+      toast.error('Not enough coins for a hint!');
+      return;
+    }
+    
+    // Deduct coins optimistically
+    const userRef = doc(db, 'users', auth.currentUser!.uid);
+    await updateDoc(userRef, { coins: profile.coins - 10 });
+    toast('Hint purchased', { icon: '🪙', description: '-10 Coins' });
+    
     setIsAiLoading(true);
     
     try {
-      const res = await fetch('/api/ai/hint', {
+      const res = await fetch('/api/ai/hint/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, bugType: MOCK_CASE.bugType, level })
+        body: JSON.stringify({
+          code,
+          bugType: currentCase?.difficulty || 'Unknown',
+          level,
+          terminalOutput: consoleOutput
+        })
       });
-      const data = await res.json();
-      setChatHistory(prev => [...prev, {role: 'ai', text: data.text}]);
-    } catch (e) {
-      setChatHistory(prev => [...prev, {role: 'ai', text: "Connection error."}]);
+
+      if (!res.ok) throw new Error('API Error');
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let completeResponse = '';
+
+      setChatHistory(prev => [...prev, { role: 'user', text: "Can you give me a hint on what I'm doing wrong?" }, { role: 'ai', text: '' }]);
+
+      if (reader) {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.text) {
+                  completeResponse += data.text;
+                  setChatHistory(prev => {
+                    const newHist = [...prev];
+                    newHist[newHist.length - 1].text = completeResponse;
+                    return newHist;
+                  });
+                }
+              } catch (e) {
+                console.error("Parse error", e);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to get hint. Systems offline.');
+    } finally {
+      setIsAiLoading(false);
     }
-    setIsAiLoading(false);
   };
 
   const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || isAiLoading) return;
     
-    const msg = chatInput.trim();
+    const message = chatInput;
     setChatInput('');
-    setChatHistory(prev => [...prev, {role: 'user', text: msg}]);
+    setChatHistory(prev => [...prev, { role: 'user', text: message }]);
     setIsAiLoading(true);
-    
+
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch('/api/ai/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, message: msg })
+        body: JSON.stringify({
+          message,
+          code,
+          terminalOutput: consoleOutput
+        })
       });
-      const data = await res.json();
-      setChatHistory(prev => [...prev, {role: 'ai', text: data.text}]);
-    } catch (e) {
-      setChatHistory(prev => [...prev, {role: 'ai', text: "Connection error."}]);
+
+      if (!res.ok) throw new Error('API Error');
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let completeResponse = '';
+      
+      setChatHistory(prev => [...prev, { role: 'ai', text: '' }]);
+
+      if (reader) {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.text) {
+                  completeResponse += data.text;
+                  setChatHistory(prev => {
+                    const newHist = [...prev];
+                    newHist[newHist.length - 1].text = completeResponse;
+                    return newHist;
+                  });
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+    } catch (error) {
+       setChatHistory(prev => [...prev, { role: 'ai', text: 'Connection failed. Cannot process query.' }]);
+    } finally {
+      setIsAiLoading(false);
     }
-    setIsAiLoading(false);
   };
 
   const handleSubmitFinal = async () => {
-    setConsoleOutput(prev => prev + '> Submitting for final evaluation...\n');
+    if (!currentCase) return;
+    const loadToast = toast.loading('Evaluating Submission...');
+    
     try {
       const res = await fetch('/api/ai/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          originalCode: MOCK_CASE.brokenCode,
+        body: JSON.stringify({
+          originalCode: currentCase.brokenCode,
           submittedCode: code,
-          expectedBehavior: MOCK_CASE.expectedBehavior
+          expectedBehavior: currentCase.expectedBehavior,
+          terminalOutput: consoleOutput
         })
       });
+      
       const data = await res.json();
-      setEvaluation(data);
-      setConsoleOutput(prev => prev + `> Evaluation received. Score: ${data.score}/100\n`);
-    } catch (e) {
-      setConsoleOutput(prev => prev + '> Error submitting evaluation.\n');
+      
+      if (data.solutionCorrect) {
+        toast.dismiss(loadToast);
+        toast.success(`Case Solved! Score: ${data.score}/100`, { duration: 5000 });
+        setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${data.score}/100\n${data.feedback}\n`);
+        
+        // Award XP and Coins
+        if (profile) {
+          const userRef = doc(db, 'users', auth.currentUser!.uid);
+          await updateDoc(userRef, { 
+            xp: profile.xp + currentCase.xpReward,
+            coins: profile.coins + currentCase.coinReward,
+            casesSolved: profile.casesSolved + 1
+          });
+        }
+      } else {
+         toast.dismiss(loadToast);
+         toast.error(`Fix incomplete. Score: ${data.score}/100`);
+         setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${data.score}/100\n${data.feedback}\n`);
+      }
+    } catch (e: any) {
+      toast.dismiss(loadToast);
+      toast.error('Evaluation Failed.');
+      setConsoleOutput(`[SYSTEM ERROR] Evaluation failed: ${e.message}\n`);
     }
   };
+
+  if (isCaseLoading || !currentCase) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#020617] text-cyan-400 font-mono text-sm uppercase tracking-widest animate-pulse">Loading Case File...</div>;
+  }
+
+  // Helper auth import for updateDoc
+  const { auth } = require('../lib/firebase');
 
   return (
     <div className="h-screen flex flex-col bg-[#020617] text-slate-200 font-sans overflow-hidden">
@@ -129,15 +261,15 @@ export function Investigation() {
             <ArrowLeft size={20} />
           </button>
           <div className="flex items-center gap-2 font-mono text-[10px] tracking-widest uppercase font-bold">
-            <span className="text-cyan-400">CASE #{caseId?.toUpperCase()}</span>
+            <span className="text-cyan-400">CASE #{currentCase.id.toUpperCase()}</span>
             <span className="text-slate-600">/</span>
-            <span className="text-slate-200">{MOCK_CASE.title}</span>
+            <span className="text-slate-200">{currentCase.title}</span>
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 bg-red-500/20 border border-red-500/30 rounded text-red-400 font-mono text-[10px] uppercase font-bold tracking-widest">
-            {MOCK_CASE.timeRemaining}
-          </div>
+           <button onClick={() => setIsDiffMode(!isDiffMode)} className={`px-4 py-1.5 text-[10px] font-bold rounded uppercase tracking-widest transition-colors ${isDiffMode ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+             {isDiffMode ? 'Exit Diff View' : 'Diff View'}
+           </button>
         </div>
       </nav>
 
@@ -149,24 +281,20 @@ export function Investigation() {
           <div className="p-4 border-b border-slate-800">
             <div className="mb-4">
               <span className="text-[10px] font-mono text-cyan-400 block mb-1 uppercase tracking-widest">CASE BRIEF</span>
-              <h2 className="text-xl font-extrabold text-white leading-tight uppercase tracking-tighter italic">{MOCK_CASE.title}</h2>
+              <h2 className="text-xl font-extrabold text-white leading-tight uppercase tracking-tighter italic">{currentCase.title}</h2>
             </div>
             <div className="space-y-4">
               <div>
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Severity</div>
-                <div className="text-red-400 font-bold text-xs uppercase px-2 py-0.5 bg-red-500/20 border border-red-500/30 rounded inline-block">{MOCK_CASE.severity}</div>
+                <div className="text-red-400 font-bold text-xs uppercase px-2 py-0.5 bg-red-500/20 border border-red-500/30 rounded inline-block">{currentCase.difficulty}</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Language</div>
-                <div className="text-blue-400 font-bold text-xs uppercase px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded inline-block">{MOCK_CASE.language}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Bug Type</div>
-                <div className="text-slate-200 text-sm font-medium">{MOCK_CASE.bugType}</div>
+                <div className="text-blue-400 font-bold text-xs uppercase px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded inline-block">{currentCase.language}</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Reward</div>
-                <div className="text-cyan-400 font-mono text-sm font-bold">+{MOCK_CASE.xpReward} XP</div>
+                <div className="text-cyan-400 font-mono text-sm font-bold">+{currentCase.xpReward} XP</div>
               </div>
             </div>
           </div>
@@ -174,24 +302,17 @@ export function Investigation() {
           <div className="p-4 space-y-6">
             <div>
               <h3 className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Incident Report</h3>
-              <p className="text-sm text-slate-300 leading-relaxed italic">'{MOCK_CASE.description}'</p>
+              <p className="text-sm text-slate-300 leading-relaxed italic">'{currentCase.story}'</p>
             </div>
             
             <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700">
-              <h4 className="text-[10px] uppercase font-bold text-cyan-400 mb-2 tracking-widest">Symptoms</h4>
-              <ul className="text-xs space-y-2 text-slate-400">
-                {MOCK_CASE.symptoms.map((s, i) => <li key={i} className="flex gap-2"><span>•</span> {s}</li>)}
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest">Expected Behavior</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{MOCK_CASE.expectedBehavior}</p>
+              <h4 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest">Expected Behavior</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">{currentCase.expectedBehavior}</p>
             </div>
             
             <div>
               <h3 className="text-[10px] uppercase font-bold text-red-400 mb-2 tracking-widest">Actual Behavior</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{MOCK_CASE.actualBehavior}</p>
+              <p className="text-xs text-slate-400 leading-relaxed">{currentCase.actualBehavior}</p>
             </div>
           </div>
         </div>
@@ -205,33 +326,36 @@ export function Investigation() {
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
               </div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">TransactionProcessor.java</span>
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">Sandbox Environment</span>
             </div>
             <div className="flex gap-2">
-              <button className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded uppercase transition-colors" onClick={() => setCode(MOCK_CASE.brokenCode)}>Reset</button>
-              <button className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold rounded uppercase transition-colors flex items-center gap-1" onClick={handleRunCode}>
-                <Play size={10} /> Run Code
+              <button className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded uppercase transition-colors" onClick={() => setCode(currentCase.brokenCode)}>Reset</button>
+              <button disabled={isExecuting} className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold rounded uppercase transition-colors flex items-center gap-1 disabled:opacity-50" onClick={handleRunCode}>
+                <Play size={10} /> {isExecuting ? 'Executing...' : 'Run Code'}
               </button>
             </div>
           </div>
+          
           <div className="flex-1 relative bg-[#0a0f1d]">
-            <Editor
-              height="100%"
-              language={MOCK_CASE.language}
-              theme="vs-dark"
-              value={code}
-              onChange={(val) => setCode(val || '')}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                fontFamily: "'JetBrains Mono', monospace",
-                padding: { top: 16 },
-                scrollBeyondLastLine: false,
-                smoothScrolling: true,
-                cursorBlinking: 'smooth',
-                renderLineHighlight: 'all',
-              }}
-            />
+            {isDiffMode ? (
+               <DiffEditor
+                 height="100%"
+                 language={currentCase.language.toLowerCase()}
+                 original={currentCase.brokenCode}
+                 modified={code}
+                 theme="vs-dark"
+                 options={{ minimap: { enabled: false }, fontSize: 14, fontFamily: "'JetBrains Mono', monospace" }}
+               />
+            ) : (
+               <Editor
+                 height="100%"
+                 language={currentCase.language.toLowerCase()}
+                 value={code}
+                 theme="vs-dark"
+                 onChange={(value) => setCode(value || '')}
+                 options={{ minimap: { enabled: false }, fontSize: 14, fontFamily: "'JetBrains Mono', monospace", formatOnPaste: true }}
+               />
+            )}
           </div>
           
           {/* Console / Test Results */}
@@ -255,22 +379,23 @@ export function Investigation() {
           
           <div className="flex-1 overflow-y-auto flex flex-col gap-4 custom-scrollbar mb-4">
             {chatHistory.map((msg, idx) => (
-              <div key={idx} className={`p-4 rounded-xl border ${msg.role === 'ai' ? 'border-purple-500/30 bg-purple-500/5' : 'bg-slate-800 border-slate-700 ml-4'}`}>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className={`p-4 rounded-xl border ${msg.role === 'ai' ? 'border-purple-500/30 bg-purple-500/5' : 'bg-slate-800 border-slate-700 ml-4'}`}>
                 {msg.role === 'ai' && <h4 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest italic">Detective AI</h4>}
-                <p className="text-xs text-slate-300 leading-relaxed font-sans">{msg.text}</p>
-              </div>
+                <p className="text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-wrap">{msg.text}</p>
+              </motion.div>
             ))}
-            {isAiLoading && (
+            {isAiLoading && chatHistory[chatHistory.length - 1]?.role !== 'ai' && (
               <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-500/5 animate-pulse">
                 <h4 className="text-[10px] uppercase font-bold text-purple-400 mb-2 tracking-widest italic">Detective AI</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">Analyzing code...</p>
+                <p className="text-xs text-slate-400 leading-relaxed">Analyzing code stream...</p>
               </div>
             )}
+            <div ref={chatEndRef} />
             
             <div className="mt-auto space-y-3 pt-4">
-              <button onClick={() => handleAskHint(1)} className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-800 hover:border-cyan-500 transition-colors text-left group">
+              <button onClick={() => handleAskHint(1)} disabled={isAiLoading} className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-800 hover:border-cyan-500 transition-colors text-left group disabled:opacity-50">
                 <div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-cyan-400">Detective AI Hint</div>
+                  <div className="text-xs font-bold text-slate-100 group-hover:text-cyan-400">Request AI Hint</div>
                   <div className="text-[10px] text-slate-500">Cost: 10 Coins</div>
                 </div>
                 <Sparkles className="w-5 h-5 text-slate-500 group-hover:text-cyan-400" />
@@ -291,8 +416,8 @@ export function Investigation() {
             </form>
           </div>
 
-          <button onClick={handleSubmitFinal} className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm uppercase tracking-tighter rounded-xl shadow-[0_10px_20px_rgba(8,145,178,0.3)] transition-all transform active:scale-95">
-             Final Submission
+          <button onClick={handleSubmitFinal} className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm uppercase tracking-tighter rounded-xl shadow-[0_10px_20px_rgba(8,145,178,0.3)] transition-all transform active:scale-95 flex items-center justify-center gap-2">
+             <CheckCircle2 size={18} /> Final Submission
           </button>
         </div>
       </div>

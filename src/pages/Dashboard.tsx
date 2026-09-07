@@ -1,48 +1,53 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { LogOut, Target, Code, Award, Zap, Brain, ChevronRight } from 'lucide-react';
-import { auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
+import { LogOut, Target, Zap, ChevronRight, Award, Brain, Code } from 'lucide-react';
+import { auth, db } from '../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { seedCasesIfEmpty } from '../lib/seed';
 
-interface CasePreview {
-  id: string;
-  title: string;
-  difficulty: string;
-  language: string;
-  xpReward: number;
-}
+const fetchCases = async () => {
+  const querySnapshot = await getDocs(collection(db, 'cases'));
+  if (querySnapshot.empty) return [];
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
 
 export function Dashboard() {
-  const { profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const navigate = useNavigate();
-  const [cases, setCases] = useState<CasePreview[]>([]);
-  
+  const queryClient = useQueryClient();
+
+  const { data: cases = [], isLoading, refetch } = useQuery({
+    queryKey: ['cases'],
+    queryFn: fetchCases,
+  });
+
   useEffect(() => {
-    async function loadCases() {
-      // In a real app we might have a seeded 'cases' collection
-      try {
-        const q = query(collection(db, 'cases'), limit(5));
-        const snapshot = await getDocs(q);
-        const loadedCases = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as CasePreview[];
-        setCases(loadedCases);
-      } catch (err) {
-        console.error("Failed to load cases", err);
-      }
-    }
-    loadCases();
-  }, []);
+    const initData = async () => {
+      await seedCasesIfEmpty();
+      refetch();
+    };
+    initData();
+  }, [refetch]);
 
   const handleLogout = () => {
     auth.signOut();
   };
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const item = {
+    hidden: { opacity: 0, x: -20 },
+    show: { opacity: 1, x: 0 }
+  };
+
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans">
+    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans overflow-x-hidden">
       <nav className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/50 sticky top-0 z-50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-cyan-500 rounded flex items-center justify-center text-slate-900 font-bold">D</div>
@@ -56,7 +61,7 @@ export function Dashboard() {
             </div>
             <button onClick={() => navigate('/profile')} className="h-10 w-10 rounded-full border-2 border-cyan-500/50 bg-slate-800 flex items-center justify-center overflow-hidden hover:border-cyan-400 transition-colors">
                <div className="w-full h-full bg-gradient-to-br from-cyan-400 to-purple-600 opacity-80 flex items-center justify-center font-bold text-white">
-                  {profile?.username?.charAt(0).toUpperCase()}
+                  {profile?.username?.charAt(0).toUpperCase() || 'U'}
                </div>
             </button>
           </div>
@@ -76,21 +81,23 @@ export function Dashboard() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <main className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column: Player Card & Stats */}
-        <div className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
                   <span>Progress to LVL {(profile?.level || 1) + 1}</span>
-                  <span className="font-mono text-cyan-400">{profile?.xp} / {(profile?.level || 1) * 1000} XP</span>
+                  <span className="font-mono text-cyan-400">{profile?.xp || 0} / {(profile?.level || 1) * 1000} XP</span>
                 </div>
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${((profile?.xp || 0) / ((profile?.level || 1) * 1000)) * 100}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
                     className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.5)]" 
-                    style={{ width: `${((profile?.xp || 0) / ((profile?.level || 1) * 1000)) * 100}%` }}
                   />
                 </div>
               </div>
@@ -119,7 +126,7 @@ export function Dashboard() {
               <Brain size={14} className="text-purple-400" />
               Daily Mission
             </h3>
-            <p className="text-slate-300 text-sm mb-4 font-medium">Fix 3 Java bugs today.</p>
+            <p className="text-slate-300 text-sm mb-4 font-medium">Fix 3 bugs today.</p>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-mono font-bold text-yellow-400 uppercase tracking-widest">+300 XP • +100 Coins</span>
               <span className="text-xs font-mono text-slate-400">0/3</span>
@@ -128,11 +135,11 @@ export function Dashboard() {
               <div className="h-full bg-purple-500 w-0 shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Middle/Right Column: Cases & Active Investigation */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="case-gradient border border-cyan-500/30 rounded-xl p-8 relative overflow-hidden">
+          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="case-gradient border border-cyan-500/30 rounded-xl p-8 relative overflow-hidden">
             <div className="relative z-10">
               <div className="text-cyan-400 font-mono text-[10px] font-bold tracking-widest uppercase mb-2">ACTIVE INVESTIGATION</div>
               <h2 className="text-2xl font-extrabold text-white mb-4 uppercase tracking-tighter italic">THE MISSING TRANSACTION</h2>
@@ -142,8 +149,8 @@ export function Dashboard() {
                 <span className="text-slate-400 tracking-widest">Progress: 65%</span>
               </div>
               <button 
-                onClick={() => navigate('/case/demo-1')}
-                className="group flex items-center gap-2 px-6 py-3 bg-cyan-600 text-white rounded font-extrabold hover:bg-cyan-500 transition-all text-sm uppercase tracking-widest"
+                onClick={() => navigate('/case/case-001')}
+                className="group flex items-center gap-2 px-6 py-3 bg-cyan-600 text-white rounded font-extrabold hover:bg-cyan-500 transition-all text-sm uppercase tracking-widest shadow-[0_5px_15px_rgba(8,145,178,0.3)]"
               >
                 Continue Investigation
                 <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
@@ -152,7 +159,7 @@ export function Dashboard() {
             <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none">
               <Code size={240} className="translate-x-1/4 translate-y-1/4 text-cyan-400" />
             </div>
-          </div>
+          </motion.div>
 
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -160,10 +167,22 @@ export function Dashboard() {
               <button className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest hover:text-cyan-300">View All</button>
             </div>
             
-            <div className="space-y-3">
-              {cases.length > 0 ? (
-                cases.map(c => (
-                  <div key={c.id} className="bg-slate-900/40 border border-slate-800 rounded-lg p-4 flex items-center justify-between hover:border-cyan-500/50 transition-colors cursor-pointer group">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-slate-900/20 border border-slate-800 rounded-lg p-6 animate-pulse flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-3 w-16 bg-slate-800 rounded"></div>
+                      <div className="h-5 w-48 bg-slate-700 rounded"></div>
+                    </div>
+                    <div className="h-5 w-16 bg-slate-800 rounded"></div>
+                  </div>
+                ))}
+              </div>
+            ) : cases.length > 0 ? (
+              <motion.div variants={container} initial="hidden" animate="show" className="space-y-3">
+                {cases.map((c: any) => (
+                  <motion.div variants={item} key={c.id} className="bg-slate-900/40 border border-slate-800 rounded-lg p-4 flex items-center justify-between hover:border-cyan-500/50 transition-colors cursor-pointer group" onClick={() => navigate(`/case/${c.id}`)}>
                     <div>
                       <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-cyan-400 mb-1">{c.language}</div>
                       <h4 className="text-slate-200 font-extrabold uppercase tracking-tight">{c.title}</h4>
@@ -172,17 +191,14 @@ export function Dashboard() {
                       <span className="text-[10px] text-yellow-400 font-mono font-bold tracking-widest uppercase">+{c.xpReward} XP</span>
                       <ChevronRight size={18} className="text-slate-600 group-hover:text-cyan-400" />
                     </div>
-                  </div>
-                ))
-              ) : (
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
                 <div className="bg-slate-900/40 border border-slate-800 border-dashed rounded-lg p-8 text-center text-slate-500 text-sm font-medium">
                   Loading cases or no cases found.
-                  <button onClick={() => navigate('/case/demo')} className="block mx-auto mt-4 text-[10px] font-bold text-cyan-400 uppercase tracking-widest hover:underline">
-                    Try Demo Case
-                  </button>
                 </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
