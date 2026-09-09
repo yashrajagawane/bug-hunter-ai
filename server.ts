@@ -4,7 +4,27 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import { z } from "zod";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 
+// ─────────────────────────────────────────────
+// Firebase Admin SDK — for server-side token verification
+// ─────────────────────────────────────────────
+if (getApps().length === 0) {
+  // In production, GOOGLE_APPLICATION_CREDENTIALS env var or service account key is used.
+  // In dev (running alongside Vite), we use the project ID from env to init without credentials
+  // so the Admin SDK can still verify tokens via Google's public certs.
+  initializeApp({
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+  });
+}
+const adminAuth = getAuth();
+
+// ─────────────────────────────────────────────
+// Gemini AI Client
+// ─────────────────────────────────────────────
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
@@ -14,6 +34,9 @@ const ai = new GoogleGenAI({
   }
 });
 
+// ─────────────────────────────────────────────
+// Retry Helper
+// ─────────────────────────────────────────────
 async function callGeminiWithRetry(modelName: string, contents: any, config?: any, retries = 3): Promise<any> {
   for (let i = 0; i < retries; i++) {
     try {
@@ -40,40 +63,103 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // ─────────────────────────────────────────────
+  // Global Middleware
+  // ─────────────────────────────────────────────
+
+  // CORS — only allow the app's own origin in production
+  app.use(cors({
+    origin: process.env.APP_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }));
+
   app.use(express.json({ limit: '100kb' }));
 
-  // Zod Schemas for Validation
+  // ─────────────────────────────────────────────
+  // Rate Limiters
+  // ─────────────────────────────────────────────
+
+  // Strict limit for AI endpoints (expensive Gemini calls)
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 20,             // 20 AI requests per minute per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please wait before trying again.' },
+  });
+
+  // Moderate limit for code execution
+  const executeLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,             // 30 executions per minute per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many execution requests. Please slow down.' },
+  });
+
+  // ─────────────────────────────────────────────
+  // Auth Middleware — verifies Firebase ID token
+  // ─────────────────────────────────────────────
+  async function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Unauthorized: missing token' });
+      return;
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      (req as any).user = decodedToken;
+      next();
+    } catch (error) {
+      res.status(401).json({ error: 'Unauthorized: invalid or expired token' });
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Zod Schemas for Request Validation
+  // ─────────────────────────────────────────────
   const HintSchema = z.object({
-    code: z.string(),
-    bugType: z.string(),
-    level: z.number().min(1).max(3),
-    terminalOutput: z.string().optional()
+    code: z.string().min(1).max(10000),
+    bugType: z.string().min(1).max(100),
+    level: z.number().int().min(1).max(3),
+    terminalOutput: z.string().max(5000).optional()
   });
 
   const ChatSchema = z.object({
-    code: z.string(),
-    message: z.string(),
-    terminalOutput: z.string().optional()
+    code: z.string().min(1).max(10000),
+    message: z.string().min(1).max(2000),
+    terminalOutput: z.string().max(5000).optional()
   });
 
   const EvaluateSchema = z.object({
-    originalCode: z.string(),
-    submittedCode: z.string(),
-    expectedBehavior: z.string(),
-    terminalOutput: z.string().optional()
+    originalCode: z.string().min(1).max(10000),
+    submittedCode: z.string().min(1).max(10000),
+    expectedBehavior: z.string().min(1).max(5000),
+    terminalOutput: z.string().max(5000).optional()
   });
 
   const ExecuteSchema = z.object({
-    language: z.string(),
-    code: z.string()
+    language: z.string().min(1).max(20),
+    code: z.string().min(1).max(10000)
   });
 
+  // ─────────────────────────────────────────────
+  // Health Check
+  // ─────────────────────────────────────────────
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // ─────────────────────────────────────────────
   // 1. Code Execution Endpoint (Piston API Proxy with Gemini Fallback)
-  app.post("/api/execute", async (req, res) => {
+  // ─────────────────────────────────────────────
+  app.post("/api/execute", requireAuth, executeLimiter, async (req, res) => {
     try {
       const { language, code } = ExecuteSchema.parse(req.body);
       
-      // Map languages to Piston API versions
       const versionMap: Record<string, string> = {
         'javascript': '18.15.0',
         'python': '3.10.0',
@@ -81,7 +167,15 @@ async function startServer() {
         'cpp': '10.2.0'
       };
 
+      const extensionMap: Record<string, string> = {
+        'javascript': 'js',
+        'python': 'py',
+        'java': 'java',
+        'cpp': 'cpp',
+      };
+
       const pistonLang = language.toLowerCase() === 'c++' ? 'cpp' : language.toLowerCase();
+      const fileExt = extensionMap[pistonLang] || pistonLang;
 
       const response = await fetch('https://emkc.org/api/v2/piston/execute', {
         method: 'POST',
@@ -89,7 +183,7 @@ async function startServer() {
         body: JSON.stringify({
           language: pistonLang,
           version: versionMap[pistonLang] || '*',
-          files: [{ name: `main.${pistonLang === 'javascript' ? 'js' : pistonLang === 'python' ? 'py' : pistonLang}`, content: code }]
+          files: [{ name: `main.${fileExt}`, content: code }]
         })
       });
       
@@ -116,9 +210,7 @@ ${code}
         const simOutput = simRes.text || "No output";
         
         return res.json({
-          run: {
-            output: simOutput
-          }
+          run: { output: simOutput }
         });
       }
 
@@ -129,14 +221,20 @@ ${code}
     }
   });
 
+  // ─────────────────────────────────────────────
   // 2. AI Streaming Hint Endpoint
-  app.post("/api/ai/hint/stream", async (req, res) => {
+  // ─────────────────────────────────────────────
+  app.post("/api/ai/hint/stream", requireAuth, aiLimiter, async (req, res) => {
     try {
       const { code, bugType, level, terminalOutput } = HintSchema.parse(req.body);
       
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+
+      // Abort streaming if client disconnects
+      let clientDisconnected = false;
+      req.on('close', () => { clientDisconnected = true; });
 
       const prompt = `You are Detective AI, an expert debugging mentor. 
 The student is trying to fix a ${bugType}.
@@ -157,6 +255,7 @@ ${terminalOutput ? `Terminal Output Context:\n\`\`\`\n${terminalOutput}\n\`\`\``
       });
 
       for await (const chunk of stream) {
+        if (clientDisconnected) break;
         if (chunk.text) {
           res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
         }
@@ -165,19 +264,26 @@ ${terminalOutput ? `Terminal Output Context:\n\`\`\`\n${terminalOutput}\n\`\`\``
       res.end();
     } catch (error: any) {
       console.error(error);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      if (!res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      }
       res.end();
     }
   });
 
+  // ─────────────────────────────────────────────
   // 3. AI Streaming Chat Endpoint
-  app.post("/api/ai/chat/stream", async (req, res) => {
+  // ─────────────────────────────────────────────
+  app.post("/api/ai/chat/stream", requireAuth, aiLimiter, async (req, res) => {
     try {
       const { message, code, terminalOutput } = ChatSchema.parse(req.body);
       
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+
+      let clientDisconnected = false;
+      req.on('close', () => { clientDisconnected = true; });
 
       const prompt = `Context Code:
 \`\`\`
@@ -196,6 +302,7 @@ Student Question: ${message}`;
       });
 
       for await (const chunk of stream) {
+        if (clientDisconnected) break;
         if (chunk.text) {
           res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
         }
@@ -204,13 +311,17 @@ Student Question: ${message}`;
       res.end();
     } catch (error: any) {
       console.error(error);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      if (!res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      }
       res.end();
     }
   });
 
+  // ─────────────────────────────────────────────
   // 4. AI Evaluation Endpoint
-  app.post("/api/ai/evaluate", async (req, res) => {
+  // ─────────────────────────────────────────────
+  app.post("/api/ai/evaluate", requireAuth, aiLimiter, async (req, res) => {
     try {
       const { originalCode, submittedCode, expectedBehavior, terminalOutput } = EvaluateSchema.parse(req.body);
       
@@ -269,7 +380,9 @@ Evaluate if the solution is correct, efficient, and fixes the bug based on the c
     }
   });
 
-  // Vite middleware for development
+  // ─────────────────────────────────────────────
+  // Vite middleware / Static serving
+  // ─────────────────────────────────────────────
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

@@ -7,7 +7,20 @@ import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { getIdToken } from 'firebase/auth';
 import { motion } from 'framer-motion';
+
+/** Returns auth headers with a fresh Firebase ID token for API calls. */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+  const token = await getIdToken(user);
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+}
+
 
 /**
  * Maps language names to Monaco Editor language identifiers.
@@ -134,7 +147,7 @@ export function Investigation() {
     try {
       const res = await fetch('/api/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           language: currentCase.language,
           code: code
@@ -180,7 +193,7 @@ export function Investigation() {
 
       const res = await fetch('/api/ai/hint/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           code,
           bugType: currentCase?.difficulty || 'Unknown',
@@ -219,7 +232,7 @@ export function Investigation() {
     try {
       const res = await fetch('/api/ai/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           message,
           code,
@@ -245,7 +258,7 @@ export function Investigation() {
     try {
       const res = await fetch('/api/ai/evaluate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           originalCode: currentCase.brokenCode,
           submittedCode: code,

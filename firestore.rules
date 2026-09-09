@@ -1,80 +1,137 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 1. Global Safety Net
+    // 1. Global Safety Net — deny everything by default
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // ─────────────────────────────────────────────
     // Primitive Helpers
-    function isSignedIn() { return request.auth != null; }
-    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true; }
+    // ─────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
 
+    function isValidId(id) {
+      return id is string
+        && id.size() <= 128
+        && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // ─────────────────────────────────────────────
     // User Validation
+    // ─────────────────────────────────────────────
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'username', 'email', 'xp', 'level', 'coins', 'streak', 'casesSolved', 'createdAt'])
+        // Identity checks
         && data.uid is string && data.uid.size() <= 128 && data.uid == request.auth.uid
-        && data.username is string && data.username.size() <= 50
+        && data.username is string && data.username.size() >= 1 && data.username.size() <= 50
         && data.email is string && data.email.size() <= 100
-        && data.xp is number
-        && data.level is number
-        && data.coins is number
-        && data.streak is number
-        && data.casesSolved is number
+        // Numeric bounds — prevent negative values and absurdly large numbers
+        && data.xp is number && data.xp >= 0 && data.xp <= 10000000
+        && data.level is number && data.level >= 1 && data.level <= 1000
+        && data.coins is number && data.coins >= 0 && data.coins <= 1000000
+        && data.streak is number && data.streak >= 0 && data.streak <= 10000
+        && data.casesSolved is number && data.casesSolved >= 0 && data.casesSolved <= 100000
         && data.createdAt is timestamp;
     }
 
+    // ─────────────────────────────────────────────
     // Case Validation
+    // ─────────────────────────────────────────────
     function isValidCase(data) {
       return data.keys().hasAll(['title', 'story', 'difficulty', 'language', 'brokenCode', 'expectedBehavior', 'actualBehavior', 'xpReward', 'coinReward'])
-        && data.title is string && data.title.size() <= 100
-        && data.story is string && data.story.size() <= 5000
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.story is string && data.story.size() >= 1 && data.story.size() <= 5000
         && data.difficulty is string && data.difficulty in ['Beginner', 'Intermediate', 'Advanced', 'Expert']
         && data.language is string && data.language in ['Java', 'Python', 'C++', 'JavaScript']
-        && data.brokenCode is string && data.brokenCode.size() <= 10000
-        && data.expectedBehavior is string && data.expectedBehavior.size() <= 5000
-        && data.actualBehavior is string && data.actualBehavior.size() <= 5000
-        && data.xpReward is number
-        && data.coinReward is number;
+        && data.brokenCode is string && data.brokenCode.size() >= 1 && data.brokenCode.size() <= 10000
+        && data.expectedBehavior is string && data.expectedBehavior.size() >= 1 && data.expectedBehavior.size() <= 5000
+        && data.actualBehavior is string && data.actualBehavior.size() >= 1 && data.actualBehavior.size() <= 5000
+        // Reward bounds — prevent negative or absurdly large rewards
+        && data.xpReward is number && data.xpReward >= 0 && data.xpReward <= 10000
+        && data.coinReward is number && data.coinReward >= 0 && data.coinReward <= 10000;
     }
 
+    // ─────────────────────────────────────────────
     // Attempt Validation
+    // ─────────────────────────────────────────────
     function isValidAttempt(data) {
       return data.keys().hasAll(['userId', 'caseId', 'submittedCode', 'score', 'hintsUsed', 'completed', 'createdAt'])
         && data.userId is string && data.userId == request.auth.uid
         && data.caseId is string
         && data.submittedCode is string && data.submittedCode.size() <= 10000
-        && data.score is number
-        && data.hintsUsed is number
+        // Score must be 0–100
+        && data.score is number && data.score >= 0 && data.score <= 100
+        && data.hintsUsed is number && data.hintsUsed >= 0 && data.hintsUsed <= 100
         && data.completed is bool
         && data.createdAt is timestamp;
     }
 
+    // ─────────────────────────────────────────────
     // Users Collection
+    // ─────────────────────────────────────────────
     match /users/{userId} {
-      // allow list: if isAdmin(); // only admins can list users
+      allow list: if isAdmin();
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if isSignedIn() && isValidId(userId) && userId == request.auth.uid && isValidUser(incoming()) && incoming().createdAt == request.time && incoming().isAdmin == false;
-      allow update: if isSignedIn() && userId == request.auth.uid && isValidUser(incoming()) && incoming().createdAt == existing().createdAt && incoming().uid == existing().uid && (incoming().isAdmin == existing().isAdmin || isAdmin());
+      allow create: if isSignedIn()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidUser(incoming())
+        && incoming().createdAt == request.time
+        // Prevent self-granting admin on account creation
+        && incoming().isAdmin == false;
+      allow update: if isSignedIn()
+        && userId == request.auth.uid
+        && isValidUser(incoming())
+        // Immutable fields
+        && incoming().createdAt == existing().createdAt
+        && incoming().uid == existing().uid
+        // Only admins can change admin status
+        && (incoming().isAdmin == existing().isAdmin || isAdmin());
     }
 
+    // ─────────────────────────────────────────────
     // Cases Collection
+    // ─────────────────────────────────────────────
     match /cases/{caseId} {
-      allow read: if isSignedIn(); // Any signed-in user can read cases
-      allow create: if isSignedIn();
+      // Any authenticated user can read cases
+      allow read: if isSignedIn();
+      // Fix H6: Only admins can create/update/delete cases, and only valid ones
+      allow create: if isAdmin() && isValidCase(incoming());
       allow update: if isAdmin() && isValidCase(incoming());
       allow delete: if isAdmin();
     }
 
+    // ─────────────────────────────────────────────
     // Attempts Collection
+    // ─────────────────────────────────────────────
     match /attempts/{attemptId} {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidId(attemptId) && isValidAttempt(incoming()) && incoming().createdAt == request.time && exists(/databases/$(database)/documents/cases/$(incoming().caseId));
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && isValidAttempt(incoming()) && incoming().createdAt == existing().createdAt && incoming().userId == existing().userId && incoming().caseId == existing().caseId;
+      allow create: if isSignedIn()
+        && isValidId(attemptId)
+        && isValidAttempt(incoming())
+        && incoming().createdAt == request.time
+        // Ensure the referenced case actually exists
+        && exists(/databases/$(database)/documents/cases/$(incoming().caseId));
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && isValidAttempt(incoming())
+        // Immutable fields
+        && incoming().createdAt == existing().createdAt
+        && incoming().userId == existing().userId
+        && incoming().caseId == existing().caseId;
     }
   }
 }
