@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
-import { Bug, ChevronRight, Terminal, ShieldAlert, Cpu } from 'lucide-react';
+import { ChevronRight, Terminal, ShieldAlert, Cpu } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 export function LandingPage() {
@@ -76,7 +76,7 @@ export function LandingPage() {
               Start Investigation
               <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="px-8 py-4 bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] text-slate-200 rounded font-bold text-lg uppercase tracking-widest hover:border-cyan-500 hover:text-cyan-400 hover:bg-white/[0.05] transition-all duration-300">
+            <button onClick={handleLogin} className="px-8 py-4 bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] text-slate-200 rounded font-bold text-lg uppercase tracking-widest hover:border-cyan-500 hover:text-cyan-400 hover:bg-white/[0.05] transition-all duration-300">
               Explore Cases
             </button>
           </div>

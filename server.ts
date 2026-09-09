@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
@@ -32,13 +33,14 @@ async function callGeminiWithRetry(modelName: string, contents: any, config?: an
       throw error;
     }
   }
+  throw new Error('Gemini API call failed after all retries');
 }
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '100kb' }));
 
   // Zod Schemas for Validation
   const HintSchema = z.object({
@@ -87,7 +89,7 @@ async function startServer() {
         body: JSON.stringify({
           language: pistonLang,
           version: versionMap[pistonLang] || '*',
-          files: [{ name: `main.${pistonLang}`, content: code }]
+          files: [{ name: `main.${pistonLang === 'javascript' ? 'js' : pistonLang === 'python' ? 'py' : pistonLang}`, content: code }]
         })
       });
       
@@ -251,7 +253,16 @@ Evaluate if the solution is correct, efficient, and fixes the bug based on the c
         }
       );
       
-      res.json(JSON.parse(response.text!));
+      const responseText = response.text;
+      if (!responseText) {
+        throw new Error('Empty response from AI evaluation');
+      }
+      try {
+        res.json(JSON.parse(responseText));
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', responseText);
+        throw new Error('Invalid AI evaluation response format');
+      }
     } catch (error: any) {
       console.error(error);
       res.status(500).json({ error: error.message });
@@ -268,7 +279,7 @@ Evaluate if the solution is correct, efficient, and fixes the bug based on the c
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

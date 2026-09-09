@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import { ArrowLeft, Sparkles, Terminal, Play, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
@@ -9,12 +9,67 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { motion } from 'framer-motion';
 
+/**
+ * Maps language names to Monaco Editor language identifiers.
+ * Fixes C6: Monaco expects "cpp" not "c++"
+ */
+function getMonacoLanguage(language: string): string {
+  const map: Record<string, string> = {
+    'c++': 'cpp',
+    'javascript': 'javascript',
+    'python': 'python',
+    'java': 'java',
+  };
+  return map[language.toLowerCase()] || language.toLowerCase();
+}
+
+/**
+ * Helper to stream SSE responses and update chat history immutably.
+ * Fixes M2: creates new objects instead of mutating in-place.
+ */
+async function processSSEStream(
+  res: Response,
+  onChunk: (completeText: string) => void
+): Promise<string> {
+  const reader = res.body?.getReader();
+  const decoder = new TextDecoder();
+  let completeResponse = '';
+
+  if (reader) {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.text) {
+              completeResponse += data.text;
+              onChunk(completeResponse);
+            }
+          } catch (e) {
+            // Skip malformed SSE lines
+          }
+        }
+      }
+    }
+  }
+  return completeResponse;
+}
+
+/** localStorage key for auto-saving code per case */
+const CODE_STORAGE_KEY = (caseId: string) => `bug-hunter-code-${caseId}`;
+
 export function Investigation() {
   const { caseId } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuthStore();
+  const { profile, setProfile } = useAuthStore();
   
   const [code, setCode] = useState('');
+  const [codeInitialized, setCodeInitialized] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState('System ready. Awaiting input...\n');
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
@@ -23,24 +78,53 @@ export function Investigation() {
   const [isDiffMode, setIsDiffMode] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Fix M1: queryFn no longer sets React state as a side effect
   const { data: currentCase, isLoading: isCaseLoading } = useQuery({
     queryKey: ['case', caseId],
     queryFn: async () => {
       const docRef = doc(db, 'cases', caseId || '');
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        const data = docSnap.data();
-        setCode(data.brokenCode);
-        return { id: docSnap.id, ...data } as any;
+        return { id: docSnap.id, ...docSnap.data() } as any;
       }
       throw new Error("Case not found");
     },
     enabled: !!caseId
   });
 
+  // Fix M1: Initialize code from query result or localStorage (Fix L6)
+  useEffect(() => {
+    if (currentCase && !codeInitialized) {
+      // Check localStorage for saved code
+      const savedCode = localStorage.getItem(CODE_STORAGE_KEY(currentCase.id));
+      setCode(savedCode || currentCase.brokenCode);
+      setCodeInitialized(true);
+    }
+  }, [currentCase, codeInitialized]);
+
+  // Fix L6: Auto-save code to localStorage on change
+  useEffect(() => {
+    if (codeInitialized && caseId && code) {
+      localStorage.setItem(CODE_STORAGE_KEY(caseId), code);
+    }
+  }, [code, caseId, codeInitialized]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isAiLoading]);
+
+  // Fix M2: Immutable chat history update helper
+  const updateLastAiMessage = useCallback((text: string) => {
+    setChatHistory(prev => {
+      const newHist = [...prev];
+      const lastIdx = newHist.length - 1;
+      if (lastIdx >= 0 && newHist[lastIdx].role === 'ai') {
+        // Create a NEW object instead of mutating in-place
+        newHist[lastIdx] = { ...newHist[lastIdx], text };
+      }
+      return newHist;
+    });
+  }, []);
 
   const handleRunCode = async () => {
     if (!currentCase) return;
@@ -74,21 +158,26 @@ export function Investigation() {
   };
 
   const handleAskHint = async (level: number) => {
-    if (!profile) return;
+    if (!profile || !auth.currentUser) return;
     
     if (profile.coins < 10) {
       toast.error('Not enough coins for a hint!');
       return;
     }
     
-    // Deduct coins optimistically
-    const userRef = doc(db, 'users', auth.currentUser!.uid);
-    await updateDoc(userRef, { coins: profile.coins - 10 });
-    toast('Hint purchased', { icon: '🪙', description: '-10 Coins' });
-    
+    // Fix C4: Deduct coins and update local state TOGETHER
+    const newCoins = profile.coins - 10;
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+
     setIsAiLoading(true);
     
     try {
+      // Deduct coins
+      await updateDoc(userRef, { coins: newCoins });
+      // Sync Zustand store so UI updates immediately
+      setProfile({ ...profile, coins: newCoins });
+      toast('Hint purchased', { icon: '🪙', description: '-10 Coins' });
+
       const res = await fetch('/api/ai/hint/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,40 +191,17 @@ export function Investigation() {
 
       if (!res.ok) throw new Error('API Error');
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let completeResponse = '';
-
       setChatHistory(prev => [...prev, { role: 'user', text: "Can you give me a hint on what I'm doing wrong?" }, { role: 'ai', text: '' }]);
-
-      if (reader) {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.text) {
-                  completeResponse += data.text;
-                  setChatHistory(prev => {
-                    const newHist = [...prev];
-                    newHist[newHist.length - 1].text = completeResponse;
-                    return newHist;
-                  });
-                }
-              } catch (e) {
-                console.error("Parse error", e);
-              }
-            }
-          }
-        }
-      }
+      await processSSEStream(res, updateLastAiMessage);
     } catch (error) {
-      toast.error('Failed to get hint. Systems offline.');
+      // Fix C4: Rollback coins on failure
+      try {
+        await updateDoc(userRef, { coins: profile.coins }); // restore original
+        setProfile({ ...profile }); // restore original profile
+      } catch (rollbackError) {
+        console.error('Coin rollback failed:', rollbackError);
+      }
+      toast.error('Failed to get hint. Coins refunded.');
     } finally {
       setIsAiLoading(false);
     }
@@ -163,36 +229,8 @@ export function Investigation() {
 
       if (!res.ok) throw new Error('API Error');
 
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let completeResponse = '';
-      
       setChatHistory(prev => [...prev, { role: 'ai', text: '' }]);
-
-      if (reader) {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.text) {
-                  completeResponse += data.text;
-                  setChatHistory(prev => {
-                    const newHist = [...prev];
-                    newHist[newHist.length - 1].text = completeResponse;
-                    return newHist;
-                  });
-                }
-              } catch (e) {}
-            }
-          }
-        }
-      }
+      await processSSEStream(res, updateLastAiMessage);
     } catch (error) {
        setChatHistory(prev => [...prev, { role: 'ai', text: 'Connection failed. Cannot process query.' }]);
     } finally {
@@ -201,7 +239,7 @@ export function Investigation() {
   };
 
   const handleSubmitFinal = async () => {
-    if (!currentCase) return;
+    if (!currentCase || !auth.currentUser) return;
     const loadToast = toast.loading('Evaluating Submission...');
     
     try {
@@ -223,14 +261,26 @@ export function Investigation() {
         toast.success(`Case Solved! Score: ${data.score}/100`, { duration: 5000 });
         setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${data.score}/100\n${data.feedback}\n`);
         
-        // Award XP and Coins
+        // Fix C5: Award XP/Coins AND sync Zustand profile state
         if (profile) {
-          const userRef = doc(db, 'users', auth.currentUser!.uid);
-          await updateDoc(userRef, { 
+          const updatedProfile = {
+            ...profile,
             xp: profile.xp + currentCase.xpReward,
             coins: profile.coins + currentCase.coinReward,
             casesSolved: profile.casesSolved + 1
+          };
+          const userRef = doc(db, 'users', auth.currentUser.uid);
+          await updateDoc(userRef, { 
+            xp: updatedProfile.xp,
+            coins: updatedProfile.coins,
+            casesSolved: updatedProfile.casesSolved
           });
+          setProfile(updatedProfile);
+        }
+
+        // Clear saved code from localStorage on successful solve
+        if (caseId) {
+          localStorage.removeItem(CODE_STORAGE_KEY(caseId));
         }
       } else {
          toast.dismiss(loadToast);
@@ -243,6 +293,9 @@ export function Investigation() {
       setConsoleOutput(`[SYSTEM ERROR] Evaluation failed: ${e.message}\n`);
     }
   };
+
+  // Fix C6: Compute Monaco language once
+  const monacoLanguage = currentCase ? getMonacoLanguage(currentCase.language) : 'plaintext';
 
   if (isCaseLoading || !currentCase) {
     return <div className="min-h-screen flex items-center justify-center bg-[#050505] text-cyan-400 font-mono text-sm uppercase tracking-widest animate-pulse">Loading Case File...</div>;
@@ -329,7 +382,7 @@ export function Investigation() {
               <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">Sandbox Environment</span>
             </div>
             <div className="flex gap-2">
-              <button className="px-3 py-1 bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-slate-200 text-[10px] font-bold rounded uppercase transition-all" onClick={() => setCode(currentCase.brokenCode)}>Reset</button>
+              <button className="px-3 py-1 bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-slate-200 text-[10px] font-bold rounded uppercase transition-all" onClick={() => { setCode(currentCase.brokenCode); if (caseId) localStorage.removeItem(CODE_STORAGE_KEY(caseId)); }}>Reset</button>
               <button disabled={isExecuting} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white text-[10px] font-bold rounded uppercase transition-all flex items-center gap-1 disabled:opacity-50 shadow-[0_0_10px_rgba(34,211,238,0.4)]" onClick={handleRunCode}>
                 <Play size={10} /> {isExecuting ? 'Executing...' : 'Run Code'}
               </button>
@@ -340,7 +393,7 @@ export function Investigation() {
             {isDiffMode ? (
                <DiffEditor
                  height="100%"
-                 language={currentCase.language.toLowerCase()}
+                 language={monacoLanguage}
                  original={currentCase.brokenCode}
                  modified={code}
                  theme="vs-dark"
@@ -349,7 +402,7 @@ export function Investigation() {
             ) : (
                <Editor
                  height="100%"
-                 language={currentCase.language.toLowerCase()}
+                 language={monacoLanguage}
                  value={code}
                  theme="vs-dark"
                  onChange={(value) => setCode(value || '')}

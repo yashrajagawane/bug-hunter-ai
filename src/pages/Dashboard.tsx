@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Target, Zap, ChevronRight, Award, Brain, Code } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { seedCasesIfEmpty } from '../lib/seed';
 
@@ -17,7 +17,6 @@ const fetchCases = async () => {
 export function Dashboard() {
   const { user, profile } = useAuthStore();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const { data: cases = [], isLoading, refetch } = useQuery({
     queryKey: ['cases'],
@@ -193,7 +192,7 @@ export function Dashboard() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Case Files</h3>
-              <button className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest hover:text-cyan-300 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">View All</button>
+              <button onClick={() => navigate('/dashboard')} className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest hover:text-cyan-300 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">View All</button>
             </div>
             
             {isLoading ? (
