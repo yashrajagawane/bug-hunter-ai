@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2, BookOpen, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'fir
 import { db, auth } from '../lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 /** Returns auth headers with a fresh Firebase ID token for API calls. */
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -90,7 +91,27 @@ export function Investigation() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isDiffMode, setIsDiffMode] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [showCasePanel, setShowCasePanel] = useState(true);
+  const [showAiPanel, setShowAiPanel] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard shortcuts: Ctrl+Enter = run code, Ctrl+S = trigger save toast
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        handleRunCode();
+      }
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        toast.success('Code saved to browser', { icon: '💾', duration: 1500 });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, currentCase, isExecuting]);
+
 
   // Fix M1: queryFn no longer sets React state as a side effect
   const { data: currentCase, isLoading: isCaseLoading } = useQuery({
@@ -354,9 +375,23 @@ export function Investigation() {
             <span className="text-slate-200">{currentCase.title}</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+           <button
+             onClick={() => setShowCasePanel(p => !p)}
+             title="Toggle Case Brief Panel"
+             className={`p-1.5 rounded text-[10px] font-bold transition-all border ${showCasePanel ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' : 'bg-white/[0.05] text-slate-400 border-white/10 hover:bg-white/[0.1]'}`}
+           >
+             {showCasePanel ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+           </button>
+           <button
+             onClick={() => setShowAiPanel(p => !p)}
+             title="Toggle AI Assistant Panel"
+             className={`p-1.5 rounded text-[10px] font-bold transition-all border ${showAiPanel ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : 'bg-white/[0.05] text-slate-400 border-white/10 hover:bg-white/[0.1]'}`}
+           >
+             <MessageSquare size={14} />
+           </button>
            <button onClick={() => setIsDiffMode(!isDiffMode)} className={`px-4 py-1.5 text-[10px] font-bold rounded uppercase tracking-widest transition-all ${isDiffMode ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-white/[0.05] text-slate-300 border border-white/10 hover:bg-white/[0.1]'}`}>
-             {isDiffMode ? 'Exit Diff View' : 'Diff View'}
+             {isDiffMode ? 'Exit Diff' : 'Diff View'}
            </button>
         </div>
       </nav>
@@ -364,8 +399,13 @@ export function Investigation() {
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden relative z-10">
         
-        {/* Left Panel - Case Info */}
-        <div className="w-80 border-r border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 overflow-y-auto custom-scrollbar shadow-xl">
+        {/* Left Panel - Case Info (collapsible) */}
+        {showCasePanel && (
+        <motion.div
+          initial={{ width: 320, opacity: 1 }}
+          animate={{ width: showCasePanel ? 320 : 0, opacity: showCasePanel ? 1 : 0 }}
+          className="w-80 border-r border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 overflow-y-auto custom-scrollbar shadow-xl"
+        >
           <div className="p-4 border-b border-white/[0.05]">
             <div className="mb-4">
               <span className="text-[10px] font-mono text-cyan-400 block mb-1 uppercase tracking-widest">CASE BRIEF</span>
@@ -403,7 +443,8 @@ export function Investigation() {
               <p className="text-xs text-slate-400 leading-relaxed">{currentCase.actualBehavior}</p>
             </div>
           </div>
-        </div>
+        </motion.div>
+        )}
 
         {/* Center Panel - Code Editor & Console */}
         <div className="flex-1 flex flex-col min-w-0 bg-black/60 relative">
@@ -418,8 +459,8 @@ export function Investigation() {
             </div>
             <div className="flex gap-2">
               <button className="px-3 py-1 bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-slate-200 text-[10px] font-bold rounded uppercase transition-all" onClick={() => { setCode(currentCase.brokenCode); if (caseId) localStorage.removeItem(CODE_STORAGE_KEY(caseId)); }}>Reset</button>
-              <button disabled={isExecuting} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white text-[10px] font-bold rounded uppercase transition-all flex items-center gap-1 disabled:opacity-50 shadow-[0_0_10px_rgba(34,211,238,0.4)]" onClick={handleRunCode}>
-                <Play size={10} /> {isExecuting ? 'Executing...' : 'Run Code'}
+              <button disabled={isExecuting} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white text-[10px] font-bold rounded uppercase transition-all flex items-center gap-1 disabled:opacity-50 shadow-[0_0_10px_rgba(34,211,238,0.4)]" onClick={handleRunCode} title="Ctrl+Enter">
+                <Play size={10} /> {isExecuting ? 'Executing...' : 'Run  ⌃↵'}
               </button>
             </div>
           </div>
@@ -457,7 +498,8 @@ export function Investigation() {
           </div>
         </div>
 
-        {/* Right Panel - AI Assistant */}
+        {/* Right Panel - AI Assistant (collapsible) */}
+        {showAiPanel && (
         <div className="w-80 border-l border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 p-6 shadow-2xl relative">
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <div className="mb-4">
@@ -470,7 +512,13 @@ export function Investigation() {
             {chatHistory.map((msg, idx) => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className={`p-4 rounded-xl border backdrop-blur-md shadow-sm ${msg.role === 'ai' ? 'border-cyan-500/30 bg-cyan-500/10' : 'bg-black/40 border-white/[0.05] ml-4'}`}>
                 {msg.role === 'ai' && <h4 className="text-[10px] uppercase font-bold text-cyan-400 mb-2 tracking-widest italic drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">Detective AI</h4>}
-                <p className="text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">{msg.text}</p>
+                {msg.role === 'ai' ? (
+                  <div className="text-xs text-slate-200 leading-relaxed font-sans prose prose-invert prose-xs max-w-none [&_code]:bg-black/60 [&_code]:px-1 [&_code]:rounded [&_code]:text-cyan-300 [&_pre]:bg-black/60 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto">
+                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-200 leading-relaxed font-sans">{msg.text}</p>
+                )}
               </motion.div>
             ))}
             {isAiLoading && chatHistory[chatHistory.length - 1]?.role !== 'ai' && (
@@ -485,7 +533,7 @@ export function Investigation() {
               <button onClick={() => handleAskHint(1)} disabled={isAiLoading} className="w-full flex items-center justify-between p-4 rounded-xl border border-white/[0.05] bg-black/40 hover:bg-white/[0.05] hover:border-cyan-500/50 transition-all text-left group disabled:opacity-50 backdrop-blur-md">
                 <div>
                   <div className="text-xs font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">Request AI Hint</div>
-                  <div className="text-[10px] text-slate-400 group-hover:text-slate-300">Cost: 10 Coins</div>
+                  <div className="text-[10px] text-slate-400 group-hover:text-slate-300">Cost: 10 Coins · {hintsUsed} used</div>
                 </div>
                 <Sparkles className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
               </button>
@@ -509,6 +557,7 @@ export function Investigation() {
              <CheckCircle2 size={18} /> Final Submission
           </button>
         </div>
+        )}
       </div>
     </div>
   );
