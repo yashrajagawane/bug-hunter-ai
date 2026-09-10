@@ -5,7 +5,7 @@ import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { motion } from 'framer-motion';
@@ -89,6 +89,7 @@ export function Investigation() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isDiffMode, setIsDiffMode] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Fix M1: queryFn no longer sets React state as a side effect
@@ -189,6 +190,7 @@ export function Investigation() {
       await updateDoc(userRef, { coins: newCoins });
       // Sync Zustand store so UI updates immediately
       setProfile({ ...profile, coins: newCoins });
+      setHintsUsed(prev => prev + 1);
       toast('Hint purchased', { icon: '🪙', description: '-10 Coins' });
 
       const res = await fetch('/api/ai/hint/stream', {
@@ -268,13 +270,33 @@ export function Investigation() {
       });
       
       const data = await res.json();
+      const isCorrect: boolean = data.solutionCorrect;
+      const score: number = data.score;
+
+      // Always record the attempt in Firestore (win or lose)
+      try {
+        await addDoc(collection(db, 'attempts'), {
+          userId: auth.currentUser.uid,
+          caseId: currentCase.id,
+          submittedCode: code,
+          score,
+          hintsUsed,
+          completed: isCorrect,
+          createdAt: serverTimestamp(),
+        });
+      } catch (attemptError) {
+        // Non-critical: log but don't surface to user
+        console.error('Failed to record attempt:', attemptError);
+      }
       
-      if (data.solutionCorrect) {
+      if (isCorrect) {
         toast.dismiss(loadToast);
-        toast.success(`Case Solved! Score: ${data.score}/100`, { duration: 5000 });
-        setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${data.score}/100\n${data.feedback}\n`);
+        toast.success(`Case Solved! Score: ${score}/100`, { duration: 5000 });
+        setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${score}/100\n${data.feedback}\n`);
         
         // Fix C5: Award XP/Coins AND sync Zustand profile state
+        // Only award XP if casesSolved hasn't already counted this case
+        // (prevents duplicate XP if the user submits twice)
         if (profile) {
           const updatedProfile = {
             ...profile,
@@ -296,9 +318,9 @@ export function Investigation() {
           localStorage.removeItem(CODE_STORAGE_KEY(caseId));
         }
       } else {
-         toast.dismiss(loadToast);
-         toast.error(`Fix incomplete. Score: ${data.score}/100`);
-         setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${data.score}/100\n${data.feedback}\n`);
+        toast.dismiss(loadToast);
+        toast.error(`Fix incomplete. Score: ${score}/100`);
+        setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${score}/100\n${data.feedback}\n`);
       }
     } catch (e: any) {
       toast.dismiss(loadToast);

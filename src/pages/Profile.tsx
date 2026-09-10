@@ -1,37 +1,66 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { ArrowLeft, Award, Target, Zap, Brain, Code, Calendar } from 'lucide-react';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useQuery } from '@tanstack/react-query';
+import type { Attempt } from '../lib/types';
 
-function ActivityHeatmap() {
-  const [data, setData] = useState<{date: Date, level: number}[]>([]);
+/** Derives a rank title from level — shared logic with Dashboard */
+function getRankTitle(level: number): string {
+  if (level >= 50) return 'Grand Master Detective';
+  if (level >= 30) return 'Master Detective';
+  if (level >= 20) return 'Expert Investigator';
+  if (level >= 10) return 'Senior Analyst';
+  if (level >= 5)  return 'Junior Detective';
+  return 'Rookie Debugger';
+}
+
+/** Formats a timestamp to a human-readable relative string */
+function timeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  return `${Math.floor(diffDays / 30)} months ago`;
+}
+
+/** Builds heatmap data from real attempt dates */
+function buildHeatmapData(attempts: Attempt[]): { date: Date; level: number }[] {
+  // Build a map: dateKey -> count of completions
+  const countMap = new Map<string, number>();
+  for (const attempt of attempts) {
+    if (!attempt.completed) continue;
+    const d = new Date(attempt.createdAt);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    countMap.set(key, (countMap.get(key) || 0) + 1);
+  }
+
+  const days = 365;
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const totalDays = days + (6 - dayOfWeek);
+  const result: { date: Date; level: number }[] = [];
+
+  for (let i = totalDays; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const count = countMap.get(key) || 0;
+    // Map count to level 0–4
+    const level = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count <= 4 ? 3 : 4;
+    result.push({ date, level });
+  }
+  return result;
+}
+
+function ActivityHeatmap({ attempts }: { attempts: Attempt[] }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    // Generate ~365 days of mock data ending today
-    const days = 365;
-    const mockData = [];
-    const today = new Date();
-    // Adjust start date so the grid aligns nicely (e.g. starts on a Sunday)
-    const dayOfWeek = today.getDay();
-    const totalDays = days + (6 - dayOfWeek); // Ensure the last week is complete at the end
-
-    for (let i = totalDays; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      
-      const isActive = Math.random() > 0.7;
-      let level = 0;
-      if (isActive) {
-        level = Math.floor(Math.random() * 4) + 1; // 1 to 4
-      }
-      // Add a guaranteed streak for the last few days to simulate current activity
-      if (i < 5) level = Math.floor(Math.random() * 3) + 2; 
-
-      mockData.push({ date, level });
-    }
-    setData(mockData);
-  }, []);
+  const data = buildHeatmapData(attempts);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -45,13 +74,12 @@ function ActivityHeatmap() {
       case 2: return 'bg-cyan-700/60 border-cyan-400/40';
       case 3: return 'bg-cyan-500/80 border-cyan-300/60 shadow-[0_0_8px_rgba(34,211,238,0.3)]';
       case 4: return 'bg-cyan-400 border-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.6)]';
-      default: return 'bg-white/[0.02] border-white/5'; // 0
+      default: return 'bg-white/[0.02] border-white/5';
     }
   };
 
-  // Group by weeks (7 days each)
-  const weeks = [];
-  let currentWeek: {date: Date, level: number}[] = [];
+  const weeks: { date: Date; level: number }[][] = [];
+  let currentWeek: { date: Date; level: number }[] = [];
   data.forEach((day) => {
     currentWeek.push(day);
     if (currentWeek.length === 7) {
@@ -59,9 +87,7 @@ function ActivityHeatmap() {
       currentWeek = [];
     }
   });
-  if (currentWeek.length > 0) {
-    weeks.push(currentWeek);
-  }
+  if (currentWeek.length > 0) weeks.push(currentWeek);
 
   const activeDays = data.filter(d => d.level > 0).length;
 
@@ -75,7 +101,7 @@ function ActivityHeatmap() {
             Contribution Heatmap
          </h3>
          <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 flex items-center gap-2">
-            <span className="text-cyan-400 font-mono text-sm">{activeDays}</span> cases solved this year
+            <span className="text-cyan-400 font-mono text-sm">{activeDays}</span> active days this year
          </div>
        </div>
 
@@ -87,7 +113,7 @@ function ActivityHeatmap() {
                  <div 
                    key={di} 
                    className={`w-3.5 h-3.5 rounded-[3px] border ${getLevelColor(day.level)} transition-all duration-300 hover:scale-125 hover:border-white/50 cursor-crosshair hover:z-10 relative`}
-                   title={`${day.date.toDateString()}: ${day.level > 0 ? day.level * 2 : 'No'} cases`}
+                   title={`${day.date.toDateString()}: ${day.level > 0 ? day.level : 'No'} case(s)`}
                  />
                ))}
              </div>
@@ -97,11 +123,7 @@ function ActivityHeatmap() {
 
        <div className="mt-2 flex items-center justify-end gap-2 text-[9px] uppercase tracking-widest font-bold text-slate-500">
          <span>Less</span>
-         <div className={`w-3 h-3 rounded-[2px] border ${getLevelColor(0)}`} />
-         <div className={`w-3 h-3 rounded-[2px] border ${getLevelColor(1)}`} />
-         <div className={`w-3 h-3 rounded-[2px] border ${getLevelColor(2)}`} />
-         <div className={`w-3 h-3 rounded-[2px] border ${getLevelColor(3)}`} />
-         <div className={`w-3 h-3 rounded-[2px] border ${getLevelColor(4)}`} />
+         {[0,1,2,3,4].map(l => <div key={l} className={`w-3 h-3 rounded-[2px] border ${getLevelColor(l)}`} />)}
          <span>More</span>
        </div>
     </div>
@@ -109,12 +131,38 @@ function ActivityHeatmap() {
 }
 
 export function Profile() {
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const navigate = useNavigate();
+  const userId = user?.uid || '';
+
+  const { data: attempts = [] } = useQuery<Attempt[]>({
+    queryKey: ['user-attempts', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const q = query(
+        collection(db, 'attempts'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc'),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => {
+        const data = d.data();
+        // Convert Firestore Timestamp to ISO string
+        const createdAt = data.createdAt?.toDate
+          ? data.createdAt.toDate().toISOString()
+          : String(data.createdAt);
+        return { id: d.id, ...data, createdAt } as Attempt;
+      });
+    },
+    enabled: !!userId,
+  });
+
+  const rankTitle = getRankTitle(profile?.level || 1);
+  const recentCompleted = attempts.filter(a => a.completed).slice(0, 5);
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans relative overflow-x-hidden">
-      {/* Ambient background orbs for glassmorphism */}
+      {/* Ambient background orbs */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
 
@@ -132,6 +180,7 @@ export function Profile() {
       <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           
+          {/* Left: Identity Card */}
           <div className="w-full lg:w-1/3 space-y-6 relative z-10 shrink-0">
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] p-6 text-center flex flex-col items-center shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]">
                <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
@@ -141,7 +190,8 @@ export function Profile() {
                  </div>
               </div>
               <h1 className="text-2xl font-extrabold text-white uppercase tracking-tighter break-words w-full leading-tight">{profile?.username}</h1>
-              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mt-1">Rookie Debugger</div>
+              {/* Dynamic rank title */}
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mt-1">{rankTitle}</div>
               
               <div className="w-full mt-6 text-left">
                 <div className="flex justify-between items-end text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 gap-2">
@@ -151,7 +201,7 @@ export function Profile() {
                 <div className="h-2 bg-black/60 border border-white/5 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]" 
-                    style={{ width: `${((profile?.xp || 0) / ((profile?.level || 1) * 1000)) * 100}%` }}
+                    style={{ width: `${Math.min(((profile?.xp || 0) / ((profile?.level || 1) * 1000)) * 100, 100)}%` }}
                   />
                 </div>
               </div>
@@ -175,50 +225,62 @@ export function Profile() {
                      </div>
                      <span className="font-mono text-white">{profile?.streak || 0} Days</span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-800/80">
                      <div className="flex items-center gap-2 text-slate-300">
-                        <Brain size={16} className="text-yellow-400" />
+                        <Target size={16} className="text-yellow-400" />
                         <span className="text-xs font-bold uppercase tracking-widest">Total Coins</span>
                      </div>
                      <span className="font-mono text-white">{profile?.coins || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                     <div className="flex items-center gap-2 text-slate-300">
+                        <Brain size={16} className="text-green-400" />
+                        <span className="text-xs font-bold uppercase tracking-widest">Attempts</span>
+                     </div>
+                     <span className="font-mono text-white">{attempts.length}</span>
                   </div>
                </div>
             </div>
           </div>
           
+          {/* Right: Heatmap + Recent Activity */}
           <div className="flex-1 w-full relative z-10">
-            <ActivityHeatmap />
+            {/* Real heatmap from Firestore attempts */}
+            <ActivityHeatmap attempts={attempts} />
 
             <div className="space-y-6">
               <h2 className="text-xl font-extrabold text-white uppercase tracking-tighter italic border-b border-white/10 pb-2 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">Recent Activity</h2>
             
-            <div className="space-y-4">
-               <div className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] rounded-xl p-4 flex items-center gap-4 shadow-sm">
-                  <div className="w-10 h-10 rounded bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                     <Code size={20} />
-                  </div>
-                  <div>
-                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">2 days ago</div>
-                     <div className="text-sm font-bold text-white uppercase tracking-tight">Solved Case #043: Deadlock in Production</div>
-                  </div>
-                  <div className="ml-auto text-xs font-mono font-bold text-cyan-400">+500 XP</div>
-               </div>
-               
-               <div className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] rounded-xl p-4 flex items-center gap-4 shadow-sm">
-                  <div className="w-10 h-10 rounded bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                     <Target size={20} />
-                  </div>
-                  <div>
-                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">3 days ago</div>
-                     <div className="text-sm font-bold text-white uppercase tracking-tight">Completed Daily Mission</div>
-                  </div>
-                  <div className="ml-auto text-xs font-mono font-bold text-cyan-400">+300 XP</div>
-               </div>
-               
-               <div className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] border-dashed rounded-xl p-8 text-center text-slate-500">
-                  <p className="text-xs font-bold uppercase tracking-widest">No more recent activity</p>
-               </div>
-            </div>
+              <div className="space-y-4">
+                {recentCompleted.length > 0 ? (
+                  recentCompleted.map((attempt) => (
+                    <div key={attempt.id} className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] rounded-xl p-4 flex items-center gap-4 shadow-sm">
+                      <div className="w-10 h-10 rounded bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                        <Code size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{timeAgo(new Date(attempt.createdAt))}</div>
+                        <div className="text-sm font-bold text-white uppercase tracking-tight truncate">
+                          Solved Case: <span className="text-cyan-400">{attempt.caseId.toUpperCase()}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end shrink-0 gap-1">
+                        <div className="text-xs font-mono font-bold text-cyan-400">Score: {attempt.score}/100</div>
+                        {attempt.hintsUsed > 0 && (
+                          <div className="text-[10px] font-mono text-slate-500">{attempt.hintsUsed} hint{attempt.hintsUsed > 1 ? 's' : ''} used</div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] border-dashed rounded-xl p-8 text-center text-slate-500">
+                      <p className="text-xs font-bold uppercase tracking-widest">No solved cases yet</p>
+                      <p className="text-xs text-slate-600 mt-1">Complete your first investigation to see activity here.</p>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           
