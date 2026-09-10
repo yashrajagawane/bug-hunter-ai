@@ -195,13 +195,16 @@ export function Investigation() {
   const handleAskHint = async (level: number) => {
     if (!profile || !auth.currentUser) return;
     
-    if (profile.coins < 10) {
-      toast.error('Not enough coins for a hint!');
+    // Progressive hint cost: Nudge=10, Clue=25, Reveal=50
+    const hintCosts: Record<number, number> = { 1: 10, 2: 25, 3: 50 };
+    const cost = hintCosts[level] || 10;
+
+    if (profile.coins < cost) {
+      toast.error(`Not enough coins! You need ${cost} coins for this hint.`);
       return;
     }
     
-    // Fix C4: Deduct coins and update local state TOGETHER
-    const newCoins = profile.coins - 10;
+    const newCoins = profile.coins - cost;
     const userRef = doc(db, 'users', auth.currentUser.uid);
 
     setIsAiLoading(true);
@@ -212,7 +215,7 @@ export function Investigation() {
       // Sync Zustand store so UI updates immediately
       setProfile({ ...profile, coins: newCoins });
       setHintsUsed(prev => prev + 1);
-      toast('Hint purchased', { icon: '🪙', description: '-10 Coins' });
+      toast('Hint purchased', { icon: '🪙', description: `-${cost} Coins` });
 
       const res = await fetch('/api/ai/hint/stream', {
         method: 'POST',
@@ -316,22 +319,52 @@ export function Investigation() {
         setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${score}/100\n${data.feedback}\n`);
         
         // Fix C5: Award XP/Coins AND sync Zustand profile state
-        // Only award XP if casesSolved hasn't already counted this case
-        // (prevents duplicate XP if the user submits twice)
         if (profile) {
+          const newXp = profile.xp + currentCase.xpReward;
+          const newCoins = profile.coins + currentCase.coinReward;
+          const newCasesSolved = profile.casesSolved + 1;
+
+          // ── Level-up logic: level = floor(xp / 1000) + 1, capped at 100 ──
+          const newLevel = Math.min(Math.floor(newXp / 1000) + 1, 100);
+          const didLevelUp = newLevel > profile.level;
+
+          // ── Streak logic: increment if last solve was yesterday or today ──
+          const todayKey = new Date().toDateString();
+          const lastSolveKey = localStorage.getItem(`last-solve-${profile.uid}`);
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayKey = yesterday.toDateString();
+          const newStreak = lastSolveKey === todayKey
+            ? profile.streak                          // already solved today
+            : lastSolveKey === yesterdayKey
+            ? profile.streak + 1                     // extending streak
+            : 1;                                     // streak reset
+          localStorage.setItem(`last-solve-${profile.uid}`, todayKey);
+
           const updatedProfile = {
             ...profile,
-            xp: profile.xp + currentCase.xpReward,
-            coins: profile.coins + currentCase.coinReward,
-            casesSolved: profile.casesSolved + 1
+            xp: newXp,
+            coins: newCoins,
+            casesSolved: newCasesSolved,
+            level: newLevel,
+            streak: newStreak,
           };
           const userRef = doc(db, 'users', auth.currentUser.uid);
-          await updateDoc(userRef, { 
-            xp: updatedProfile.xp,
-            coins: updatedProfile.coins,
-            casesSolved: updatedProfile.casesSolved
+          await updateDoc(userRef, {
+            xp: newXp,
+            coins: newCoins,
+            casesSolved: newCasesSolved,
+            level: newLevel,
+            streak: newStreak,
           });
           setProfile(updatedProfile);
+
+          if (didLevelUp) {
+            toast.success(`⬆️ Level Up! You are now Level ${newLevel}!`, { duration: 6000 });
+          }
+          if (newStreak > 1 && newStreak !== profile.streak) {
+            toast(`🔥 ${newStreak} day streak!`, { duration: 4000 });
+          }
         }
 
         // Clear saved code from localStorage on successful solve
@@ -529,14 +562,27 @@ export function Investigation() {
             )}
             <div ref={chatEndRef} />
             
-            <div className="mt-auto space-y-3 pt-4">
-              <button onClick={() => handleAskHint(1)} disabled={isAiLoading} className="w-full flex items-center justify-between p-4 rounded-xl border border-white/[0.05] bg-black/40 hover:bg-white/[0.05] hover:border-cyan-500/50 transition-all text-left group disabled:opacity-50 backdrop-blur-md">
-                <div>
-                  <div className="text-xs font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">Request AI Hint</div>
-                  <div className="text-[10px] text-slate-400 group-hover:text-slate-300">Cost: 10 Coins · {hintsUsed} used</div>
-                </div>
-                <Sparkles className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
-              </button>
+            <div className="mt-auto space-y-2 pt-4">
+              <div className="text-[9px] uppercase tracking-widest font-bold text-slate-500 mb-2">Progressive Hints</div>
+              {([
+                { level: 1, label: 'Nudge',   desc: 'Conceptual direction', cost: 10,  color: 'hover:border-cyan-500/50 hover:text-cyan-400' },
+                { level: 2, label: 'Clue',    desc: 'Specific area',        cost: 25,  color: 'hover:border-yellow-500/50 hover:text-yellow-400' },
+                { level: 3, label: 'Reveal',  desc: 'Near-solution guide',  cost: 50,  color: 'hover:border-red-500/50 hover:text-red-400' },
+              ] as const).map(h => (
+                <button
+                  key={h.level}
+                  onClick={() => handleAskHint(h.level)}
+                  disabled={isAiLoading || (profile?.coins ?? 0) < h.cost}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border border-white/[0.05] bg-black/40 ${h.color} transition-all text-left group disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-md`}
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-200 group-hover:inherit transition-colors">{h.label}</div>
+                    <div className="text-[10px] text-slate-500">{h.desc}</div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-yellow-500 shrink-0 ml-2">{h.cost}🪙</span>
+                </button>
+              ))}
+              <div className="text-[9px] text-slate-600 text-center pt-1">{hintsUsed} hint{hintsUsed !== 1 ? 's' : ''} used this session</div>
             </div>
           </div>
           

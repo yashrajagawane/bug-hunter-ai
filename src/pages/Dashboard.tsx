@@ -137,6 +137,9 @@ export function Dashboard() {
               <div className="text-[10px] uppercase text-slate-500 font-semibold tracking-widest">Rank</div>
               <div className="text-xs font-mono font-bold text-slate-200">LVL {profile?.level || 1} · {profile?.username?.toUpperCase()}</div>
             </div>
+            <button onClick={() => navigate('/leaderboard')} title="Leaderboard" className="h-9 w-9 rounded-lg border border-yellow-500/30 bg-yellow-500/10 flex items-center justify-center hover:bg-yellow-500/20 transition-all">
+              <span className="text-base">🏆</span>
+            </button>
             <button onClick={() => navigate('/profile')} className="h-10 w-10 rounded-full border-2 border-cyan-500/50 bg-black flex items-center justify-center overflow-hidden hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all">
                <div className="w-full h-full bg-gradient-to-br from-cyan-500/20 to-purple-600/20 flex items-center justify-center font-bold text-white">
                   {profile?.username?.charAt(0).toUpperCase() || 'U'}

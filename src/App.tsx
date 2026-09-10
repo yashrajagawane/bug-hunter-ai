@@ -6,6 +6,7 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 import { AuthProvider } from './components/AuthProvider';
@@ -18,6 +19,7 @@ const LandingPage    = lazy(() => import('./pages/LandingPage').then(m => ({ def
 const Dashboard      = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Investigation  = lazy(() => import('./pages/Investigation').then(m => ({ default: m.Investigation })));
 const Profile        = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Leaderboard    = lazy(() => import('./pages/Leaderboard').then(m => ({ default: m.Leaderboard })));
 const NotFound       = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const queryClient = new QueryClient({
@@ -133,6 +135,11 @@ export default function App() {
                     <RouteWithErrorBoundary><Profile /></RouteWithErrorBoundary>
                   </ProtectedRoute>
                 } />
+                <Route path="/leaderboard" element={
+                  <ProtectedRoute>
+                    <RouteWithErrorBoundary><Leaderboard /></RouteWithErrorBoundary>
+                  </ProtectedRoute>
+                } />
                 {/* 404 catch-all */}
                 <Route path="*" element={
                   <RouteWithErrorBoundary><NotFound /></RouteWithErrorBoundary>
@@ -149,6 +156,7 @@ export default function App() {
               }
             }}/>
           </BrowserRouter>
+          {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
