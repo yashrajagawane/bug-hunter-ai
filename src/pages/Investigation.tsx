@@ -5,7 +5,7 @@ import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2, BookOpen, MessageSqu
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
-import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, addDoc, collection, getDocs, query, where, limit, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { motion } from 'framer-motion';
@@ -95,6 +95,7 @@ export function Investigation() {
   const [showCasePanel, setShowCasePanel] = useState(true);
   const [showAiPanel, setShowAiPanel] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcuts: Ctrl+Enter = run code, Ctrl+S = trigger save toast
@@ -149,6 +150,33 @@ export function Investigation() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isAiLoading]);
+
+  // Countdown timer — initialize from case.timeLimit, auto-submit at zero
+  useEffect(() => {
+    if (currentCase?.timeLimit && timeLeft === null) {
+      setTimeLeft(currentCase.timeLimit);
+    }
+  }, [currentCase, timeLeft]);
+
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+    const id = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(id);
+          toast.error('⏰ Time is up! Auto-submitting your solution...', { duration: 5000 });
+          // Trigger evaluation on next tick to avoid stale closure
+          setTimeout(() => {
+            document.getElementById('final-submit-btn')?.click();
+          }, 500);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timeLeft === null ? null : Math.sign(timeLeft)]);
+  // ↑ re-runs only when timer goes from null→number or number→0
 
   // Fix M2: Immutable chat history update helper
   const updateLastAiMessage = useCallback((text: string) => {
@@ -320,12 +348,23 @@ export function Investigation() {
         toast.success(`Case Solved! Score: ${score}/100`, { duration: 5000 });
         setConsoleOutput(prev => prev + `\n\n[DETECTIVE AI VERDICT]\nScore: ${score}/100\n${data.feedback}\n`);
         
-        // Fix C5: Award XP/Coins AND sync Zustand profile state
-        if (profile) {
-          const newXp = profile.xp + currentCase.xpReward;
-          const newCoins = profile.coins + currentCase.coinReward;
-          const newCasesSolved = profile.casesSolved + 1;
+        // Deduplication: only award XP/coins if user hasn't already completed this case
+        const alreadySolved = await getDocs(
+          query(collection(db, 'attempts'),
+            where('userId', '==', auth.currentUser.uid),
+            where('caseId', '==', currentCase.id),
+            where('completed', '==', true),
+            limit(2)          // limit 2 so we can detect if THIS attempt is the first completed one
+          )
+        );
+        // alreadySolved.size > 1 means there's a prior completed attempt (we just created one above)
+        const isFirstSolve = alreadySolved.size <= 1;
 
+          const newXp = profile ? profile.xp + currentCase.xpReward : 0;
+          const newCoins = profile ? profile.coins + currentCase.coinReward : 0;
+          const newCasesSolved = profile ? profile.casesSolved + 1 : 0;
+
+          if (profile && isFirstSolve) {
           // ── Level-up logic: level = floor(xp / 1000) + 1, capped at 100 ──
           const newLevel = Math.min(Math.floor(newXp / 1000) + 1, 100);
           const didLevelUp = newLevel > profile.level;
@@ -376,7 +415,9 @@ export function Investigation() {
               duration: 6000,
             });
           }
-        }
+          } else if (profile && !isFirstSolve) {
+            toast('Case already solved — no XP awarded again.', { icon: '✅', duration: 3000 });
+          }
 
         // Clear saved code from localStorage on successful solve
         if (caseId) {
@@ -437,6 +478,17 @@ export function Investigation() {
            <button onClick={() => setIsDiffMode(!isDiffMode)} className={`px-4 py-1.5 text-[10px] font-bold rounded uppercase tracking-widest transition-all ${isDiffMode ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-white/[0.05] text-slate-300 border border-white/10 hover:bg-white/[0.1]'}`}>
              {isDiffMode ? 'Exit Diff' : 'Diff View'}
            </button>
+           {timeLeft !== null && (
+             <div className={`font-mono text-xs font-bold px-3 py-1.5 rounded border ${
+               timeLeft <= 60
+                 ? 'text-red-400 bg-red-500/10 border-red-500/30 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+                 : timeLeft <= 180
+                 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
+                 : 'text-slate-300 bg-white/[0.05] border-white/10'
+             }`}>
+               ⏱ {String(Math.floor(timeLeft / 60)).padStart(2,'0')}:{String(timeLeft % 60).padStart(2,'0')}
+             </div>
+           )}
         </div>
       </nav>
 
@@ -620,7 +672,7 @@ export function Investigation() {
             </form>
           </div>
 
-          <button onClick={handleSubmitFinal} className="w-full py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-black text-sm uppercase tracking-tighter rounded-xl shadow-[0_10px_20px_rgba(8,145,178,0.4)] transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2">
+          <button id="final-submit-btn" onClick={handleSubmitFinal} className="w-full py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-black text-sm uppercase tracking-tighter rounded-xl shadow-[0_10px_20px_rgba(8,145,178,0.4)] transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2">
              <CheckCircle2 size={18} /> Final Submission
           </button>
         </div>

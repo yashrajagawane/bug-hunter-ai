@@ -1,111 +1,172 @@
-# 🕵️‍♂️ AI Debug Detective
+# 🕵️ AI Debug Detective
 
-**AI Debug Detective** is a full-stack, gamified educational platform designed to help developers level up their debugging skills. Step into the shoes of a code detective to investigate, diagnose, and fix broken code across multiple languages. Equipped with a real-time AI mentor and a live execution sandbox, you can solve cases, earn XP, and climb the ranks.
+A gamified debugging platform where detectives solve real code bugs with AI assistance. Built with React 19, Firebase, Express, and the Gemini API.
 
 ---
 
 ## ✨ Features
 
-- **Live Code Execution Sandbox**: Write and execute real Python, Java, JavaScript, or C++ code securely in the browser using the Piston API integration.
-- **AI-Powered Detective Toolkit**: 
-  - **Streaming Chat**: Ask the "Detective AI" (powered by Gemini 3.1 Flash) questions about the codebase.
-  - **Context-Aware Hints**: Purchase hints using earned coins. The AI reads your current code and the latest terminal output to give you personalized, non-spoiler guidance.
-  - **Automated Evaluation**: Submit your final fix to the AI for grading. It evaluates correctness, time/space complexity, and test passes.
-- **Professional IDE Experience**: Integrated `@monaco-editor/react` with a seamless togglable Diff View to compare your fix side-by-side with the original broken code.
-- **Gamification Progression**: Earn XP, collect coins, build daily streaks, and increase your Detective Rank (Level) stored securely in Firebase Firestore.
-- **Industry-Standard Architecture**: Built with robust state management (Zustand & TanStack React Query), schema validation (Zod), and sleek animations (Framer Motion).
+- **12+ Debugging Cases** across JavaScript, Python, Java, and C++
+- **AI Detective Assistant** — streaming Gemini-powered chat & contextual hints
+- **3-Tier Progressive Hints** — Nudge (10🪙) / Clue (25🪙) / Reveal (50🪙)
+- **Code Execution** — Piston API with Gemini fallback simulator
+- **Diff View** — Side-by-side original vs. your fix
+- **Countdown Timer** — Time-limited cases with auto-submit on expiry
+- **Leaderboard** — Real-time rankings by XP, Cases Solved, Streak
+- **Achievement System** — 14 achievements across 4 rarity tiers
+- **Auto Level-Up** — XP thresholds trigger level advancement with toast
+- **Daily Streak Tracking** — Consecutive day solve tracking
+- **Case Deduplication** — XP awarded only on first-time solve
+- **Admin Panel** — CRUD case management + Gemini AI case generation
+- **Search & Filter** — Live search + difficulty filter on Dashboard
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠 Tech Stack
 
-**Frontend**
-- **Framework**: React 18 + Vite + TypeScript
-- **Styling**: Tailwind CSS, Framer Motion (Animations), Sonner (Toasts)
-- **State Management**: Zustand (Auth/Local State), TanStack React Query (Server State)
-- **Editor**: Monaco Editor (`@monaco-editor/react`)
-
-**Backend**
-- **Server**: Express.js (Node.js) with Vite Middleware
-- **AI Integration**: Google Gemini API (`@google/genai`) using Server-Sent Events (SSE) for real-time streaming
-- **Execution Engine**: Piston API (Remote code execution)
-- **Validation**: Zod (Schema parsing)
-
-**Infrastructure & Database**
-- **Database**: Firebase Firestore (NoSQL)
-- **Authentication**: Firebase Authentication (Google OAuth)
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite, TailwindCSS v4, Framer Motion |
+| State | Zustand, TanStack React Query |
+| Editor | Monaco Editor, react-markdown |
+| Backend | Express, tsx (dev), esbuild (prod) |
+| AI | Google Gemini API (`@google/genai`) |
+| Code Execution | Piston API + Gemini fallback simulator |
+| Database | Firebase Firestore |
+| Auth | Firebase Authentication (Google Sign-In) |
+| Validation | Zod (server), TypeScript strict (client) |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18+ recommended)
-- A Firebase Project (with Firestore and Authentication enabled)
-- A Google Gemini API Key
 
-### Environment Variables
-Create a `.env` file in the root directory and add the following variables:
+- Node.js 20+
+- A Firebase project with Firestore + Google Auth enabled
+- A Gemini API key from [Google AI Studio](https://aistudio.google.com)
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/your-username/ai-debug-detective.git
+cd ai-debug-detective
+npm install
+```
+
+### 2. Configure Environment
+
+Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
 
 ```env
-# Gemini API Key (Server-side only)
+# Gemini AI (required)
 GEMINI_API_KEY=your_gemini_api_key
 
-# Firebase Configuration (Client-side)
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
-VITE_FIREBASE_APP_ID=your_firebase_app_id
+# Firebase Admin SDK (server-side token verification)
+FIREBASE_PROJECT_ID=your_project_id
+
+# App URL for CORS (production)
+APP_URL=https://your-app.example.com
+
+# Firebase Client (Vite frontend)
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
 ```
 
-### Installation & Running
+### 3. Firebase Setup
 
-1. **Install Dependencies**
+1. Enable **Google Sign-In** in Firebase Console → Authentication → Sign-in providers
+2. Enable **Firestore** in native mode
+3. Deploy security rules:
    ```bash
-   npm install
+   firebase deploy --only firestore:rules
+   ```
+4. Deploy indexes:
+   ```bash
+   firebase deploy --only firestore:indexes
    ```
 
-2. **Start the Development Server**
-   ```bash
-   npm run dev
-   ```
-   *Note: This project uses a custom Express server (`server.ts`) that runs Vite in middleware mode. The server starts on `http://localhost:3000`.*
+### 4. Run Development Server
 
-3. **Database Seeding**
-   Upon first login, the application will automatically seed your Firestore database with beginner cases if the `cases` collection is empty.
+```bash
+npm run dev
+```
+
+The app runs on `http://localhost:3000`.
 
 ---
 
-## 📁 Project Structure
+## 🗂 Project Structure
 
-```text
-├── server.ts                 # Express backend (AI Streaming, Code Execution API)
-├── src/
-│   ├── components/           # Reusable React components (Auth, Layouts)
-│   ├── lib/                  # Firebase setup, Database seeding logic
-│   ├── pages/                # Main views (Landing, Dashboard, Investigation, Profile)
-│   ├── store/                # Zustand stores (Auth state)
-│   ├── App.tsx               # App routing and React Query/Error Boundary providers
-│   └── main.tsx              # React DOM entry point
-├── firestore.rules           # Firestore security and validation rules
-├── package.json              # Dependencies and scripts
-└── README.md                 # You are here!
+```
+src/
+├── components/
+│   └── AuthProvider.tsx       # Firebase auth listener + Zustand sync
+├── lib/
+│   ├── achievements.ts        # 14 achievement definitions + unlock helpers
+│   ├── firebase.ts            # Firebase client initialisation
+│   ├── seed.ts                # 12 seed cases (auto-loads on first visit)
+│   ├── types.ts               # Shared TypeScript interfaces
+│   └── utils.ts               # Shared helpers (getRankTitle, timeAgo, etc.)
+├── pages/
+│   ├── Admin.tsx              # Admin-only case management + AI generator
+│   ├── Dashboard.tsx          # Case browser with search/filter, player card
+│   ├── Investigation.tsx      # Main investigation workspace
+│   ├── Leaderboard.tsx        # Real-time global rankings
+│   ├── LandingPage.tsx        # Marketing landing page
+│   ├── NotFound.tsx           # 404 page
+│   └── Profile.tsx            # User profile, heatmap, achievements
+└── store/
+    └── authStore.ts           # Zustand global auth + profile store
+
+server.ts                      # Express backend (AI endpoints, code execution)
+firestore.rules                # Firestore security rules
+firestore.indexes.json         # Composite indexes for leaderboard queries
 ```
 
 ---
-
-## 🧠 How the AI Works
-
-The backend utilizes `gemini-3.1-flash` to act as an educational mentor. 
-- **System Prompting**: The AI is strictly instructed to act as a mentor, never directly giving the answer, but guiding the user based on pedagogical principles.
-- **Context Injection**: When a user asks for a hint or chats with the AI, the frontend sends the *current editor code* and the *most recent terminal output*. This allows the AI to say, "I see you got a NullPointerException on line 12..." making it feel like a real pairing session.
-- **Streaming**: Responses use `generateContentStream` and Server-Sent Events to type out the response instantly on the frontend, eliminating loading screens.
 
 ## 🔒 Security
 
-- **Client-Side**: Firebase Authentication handles secure user sessions.
-- **Database**: `firestore.rules` enforces Role-Based Access Control (RBAC) and validates data shapes before writes.
-- **Execution**: User code is never executed directly on the host server. It is proxied to the secure, sandboxed Piston execution API.
-- **Secrets**: The Gemini API key remains strictly on the Node.js server and is never shipped to the browser.
+- All `/api/*` routes require a valid Firebase ID token (`Authorization: Bearer <token>`)
+- Rate limited: 20 AI requests/min, 30 code executions/min per IP
+- CORS restricted to `APP_URL` in production
+- Firestore rules enforce: numeric bounds, ownership, admin-only case writes
+- XP awarded only once per case (Firestore-checked deduplication)
+
+---
+
+## 🛠 Admin Setup
+
+To make a user an admin, manually set `isAdmin: true` on their Firestore user document:
+
+```
+Firestore → users → {uid} → isAdmin: true
+```
+
+Admins get access to `/admin` which provides:
+- List, delete, and manually create cases
+- AI-generated case creation via Gemini (language + difficulty + optional topic hint)
+
+---
+
+## 📦 Build for Production
+
+```bash
+npm run build
+npm start
+```
+
+---
+
+## 📄 License
+
+MIT

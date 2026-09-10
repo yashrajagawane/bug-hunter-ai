@@ -199,12 +199,12 @@ export function Dashboard() {
               <div>
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
                   <span>LVL {profile?.level || 1}</span>
-                  <span className="font-mono text-cyan-400">{profile?.xp || 0} / {(profile?.level || 1) * 1000} XP</span>
+                  <span className="font-mono text-cyan-400">{(profile?.xp || 0) % 1000} / 1000 XP</span>
                 </div>
                 <div className="h-1.5 bg-black/60 rounded-full overflow-hidden border border-white/5">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(((profile?.xp || 0) / ((profile?.level || 1) * 1000)) * 100, 100)}%` }}
+                    animate={{ width: `${Math.min((((profile?.xp || 0) % 1000) / 1000) * 100, 100)}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                     className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]" 
                   />
