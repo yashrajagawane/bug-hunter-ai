@@ -20,6 +20,7 @@ const Dashboard      = lazy(() => import('./pages/Dashboard').then(m => ({ defau
 const Investigation  = lazy(() => import('./pages/Investigation').then(m => ({ default: m.Investigation })));
 const Profile        = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Leaderboard    = lazy(() => import('./pages/Leaderboard').then(m => ({ default: m.Leaderboard })));
+const Admin          = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const NotFound       = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const queryClient = new QueryClient({
@@ -138,6 +139,11 @@ export default function App() {
                 <Route path="/leaderboard" element={
                   <ProtectedRoute>
                     <RouteWithErrorBoundary><Leaderboard /></RouteWithErrorBoundary>
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                  <ProtectedRoute>
+                    <RouteWithErrorBoundary><Admin /></RouteWithErrorBoundary>
                   </ProtectedRoute>
                 } />
                 {/* 404 catch-all */}

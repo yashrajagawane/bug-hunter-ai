@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, Zap, ChevronRight, Award, Brain, Code } from 'lucide-react';
+import { LogOut, Target, Zap, ChevronRight, Award, Brain, Code, Search, SlidersHorizontal } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
@@ -72,6 +72,9 @@ export function Dashboard() {
   const navigate = useNavigate();
   const userId = user?.uid || '';
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState<string>('All');
+
   const { data: cases = [], isLoading, refetch } = useQuery({
     queryKey: ['cases'],
     queryFn: fetchCases,
@@ -87,6 +90,14 @@ export function Dashboard() {
     queryKey: ['daily-progress', userId],
     queryFn: () => fetchDailyProgress(userId),
     enabled: !!userId,
+  });
+
+  // Filtered cases: by difficulty tab + search query
+  const filteredCases = cases.filter(c => {
+    const matchesDiff = difficultyFilter === 'All' || c.difficulty === difficultyFilter;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || c.title.toLowerCase().includes(q) || c.language.toLowerCase().includes(q) || c.difficulty.toLowerCase().includes(q);
+    return matchesDiff && matchesSearch;
   });
 
   useEffect(() => {
@@ -290,11 +301,48 @@ export function Dashboard() {
           </motion.div>
 
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Case Files</h3>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{cases.length} available</span>
+            {/* Search + filter bar */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search cases by title, language..."
+                  className="w-full bg-black/60 border border-white/[0.05] rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500/40 transition-all"
+                />
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                {(['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'] as const).map(d => (
+                  <button
+                    key={d}
+                    onClick={() => setDifficultyFilter(d)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                      difficultyFilter === d
+                        ? d === 'All' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                          : d === 'Beginner' ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                          : d === 'Intermediate' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+                          : d === 'Advanced' ? 'bg-orange-500/20 text-orange-400 border-orange-500/40'
+                          : 'bg-red-500/20 text-red-400 border-red-500/40'
+                        : 'bg-white/[0.03] text-slate-500 border-white/[0.05] hover:border-white/20 hover:text-slate-300'
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
             </div>
-            
+
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
+                <SlidersHorizontal size={12} /> Case Files
+              </h3>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                {filteredCases.length} / {cases.length} shown
+              </span>
+            </div>
+
             {isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -307,9 +355,9 @@ export function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : cases.length > 0 ? (
+            ) : filteredCases.length > 0 ? (
               <motion.div variants={container} initial="hidden" animate="show" className="space-y-3">
-                {cases.map((c: Case) => (
+                {filteredCases.map((c: Case) => (
                   <motion.div variants={item} key={c.id} className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] rounded-xl p-4 flex items-center justify-between hover:border-cyan-500/30 hover:bg-white/[0.04] transition-all cursor-pointer group shadow-sm" onClick={() => navigate(`/case/${c.id}`)}>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -331,9 +379,11 @@ export function Dashboard() {
                 ))}
               </motion.div>
             ) : (
-                <div className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] border-dashed rounded-xl p-8 text-center text-slate-500 text-sm font-medium">
-                  Loading cases or no cases found.
-                </div>
+              <div className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] border-dashed rounded-xl p-8 text-center text-slate-500 text-sm font-medium">
+                {searchQuery || difficultyFilter !== 'All'
+                  ? 'No cases match your filters. Try a different search or difficulty.'
+                  : 'Loading cases or no cases found.'}
+              </div>
             )}
           </div>
         </div>

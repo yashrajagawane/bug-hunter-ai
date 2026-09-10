@@ -6,6 +6,7 @@ import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import type { Attempt } from '../lib/types';
+import { ACHIEVEMENTS, RARITY_STYLES, RARITY_GLOW, getUnlockedAchievements } from '../lib/achievements';
 
 /** Derives a rank title from level — shared logic with Dashboard */
 function getRankTitle(level: number): string {
@@ -249,6 +250,35 @@ export function Profile() {
             <ActivityHeatmap attempts={attempts} />
 
             <div className="space-y-6">
+              {/* Achievements */}
+              {profile && (() => {
+                const unlocked = getUnlockedAchievements(profile);
+                const locked = ACHIEVEMENTS.filter(a => !unlocked.find(u => u.id === a.id));
+                return (
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white uppercase tracking-tighter italic border-b border-white/10 pb-2 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] mb-4">
+                      Achievements <span className="text-sm font-mono text-cyan-400 ml-2">{unlocked.length}/{ACHIEVEMENTS.length}</span>
+                    </h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {unlocked.map(a => (
+                        <div key={a.id} className={`rounded-xl border p-3 flex flex-col items-center text-center gap-1 ${RARITY_STYLES[a.rarity]} ${RARITY_GLOW[a.rarity]}`}>
+                          <span className="text-2xl">{a.icon}</span>
+                          <div className="text-[10px] font-extrabold uppercase tracking-widest">{a.title}</div>
+                          <div className="text-[9px] opacity-70">{a.description}</div>
+                        </div>
+                      ))}
+                      {locked.map(a => (
+                        <div key={a.id} className="rounded-xl border border-white/[0.05] bg-white/[0.01] p-3 flex flex-col items-center text-center gap-1 opacity-30 grayscale">
+                          <span className="text-2xl">🔒</span>
+                          <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{a.title}</div>
+                          <div className="text-[9px] text-slate-600">{a.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <h2 className="text-xl font-extrabold text-white uppercase tracking-tighter italic border-b border-white/10 pb-2 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">Recent Activity</h2>
             
               <div className="space-y-4">

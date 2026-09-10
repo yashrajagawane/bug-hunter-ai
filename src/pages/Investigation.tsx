@@ -10,6 +10,7 @@ import { db, auth } from '../lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import { getNewlyUnlocked } from '../lib/achievements';
 
 /** Returns auth headers with a fresh Firebase ID token for API calls. */
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -364,6 +365,15 @@ export function Investigation() {
           }
           if (newStreak > 1 && newStreak !== profile.streak) {
             toast(`🔥 ${newStreak} day streak!`, { duration: 4000 });
+          }
+
+          // Fire achievement unlock toasts
+          const newAchievements = getNewlyUnlocked(profile, updatedProfile);
+          for (const ach of newAchievements) {
+            toast.success(`${ach.icon} Achievement Unlocked: ${ach.title}`, {
+              description: ach.description,
+              duration: 6000,
+            });
           }
         }
 
