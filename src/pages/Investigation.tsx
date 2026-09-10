@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2, BookOpen, MessageSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2, BookOpen, MessageSquare, PanelLeftClose, PanelLeftOpen, Copy, Check } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
@@ -94,6 +94,7 @@ export function Investigation() {
   const [hintsUsed, setHintsUsed] = useState(0);
   const [showCasePanel, setShowCasePanel] = useState(true);
   const [showAiPanel, setShowAiPanel] = useState(true);
+  const [copied, setCopied] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcuts: Ctrl+Enter = run code, Ctrl+S = trigger save toast
@@ -111,7 +112,7 @@ export function Investigation() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, currentCase, isExecuting]);
+  }, [code, caseId, isExecuting]);
 
 
   // Fix M1: queryFn no longer sets React state as a side effect
@@ -532,8 +533,18 @@ export function Investigation() {
           
           {/* Console / Test Results */}
           <div className="h-40 border-t border-white/[0.05] bg-black/80 backdrop-blur-xl flex flex-col shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-            <div className="flex items-center px-4 py-1 border-b border-white/[0.05] bg-white/[0.02]">
+            <div className="flex items-center justify-between px-4 py-1 border-b border-white/[0.05] bg-white/[0.02]">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><Terminal size={10} className="inline mr-1"/> Debug Terminal</span>
+              <button
+                onClick={async () => {
+                  const ok = await navigator.clipboard.writeText(consoleOutput).then(() => true).catch(() => false);
+                  if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+                }}
+                title="Copy output"
+                className="text-slate-600 hover:text-slate-300 transition-colors"
+              >
+                {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+              </button>
             </div>
             <div className="flex-1 p-4 font-mono text-xs overflow-y-auto whitespace-pre-wrap text-slate-400">
               {consoleOutput}

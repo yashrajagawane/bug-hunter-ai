@@ -404,7 +404,7 @@ export async function seedCasesIfEmpty() {
       });
       
       await batch.commit();
-      console.log(\`Database seeded with \${SEED_CASES.length} cases.\`);
+      console.log('Database seeded with ' + SEED_CASES.length + ' cases.');
     }
   } catch (error) {
     console.error("Error seeding database:", error);

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Trash2, RefreshCw, ShieldAlert, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, RefreshCw, ShieldAlert, Save, Wand2, Loader2 } from 'lucide-react';
 import { collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
+import { getIdToken } from 'firebase/auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -32,6 +33,45 @@ export function Admin() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [showForm, setShowForm] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiTopic, setAiTopic]     = useState('');
+  const [aiLang, setAiLang]       = useState<typeof LANGUAGES[number]>('JavaScript');
+  const [aiDiff, setAiDiff]       = useState<typeof DIFFICULTIES[number]>('Intermediate');
+
+  const handleGenerateWithAI = async () => {
+    if (!auth.currentUser) return;
+    setAiGenerating(true);
+    try {
+      const token = await getIdToken(auth.currentUser);
+      const res = await fetch('/api/ai/generate-case', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ language: aiLang, difficulty: aiDiff, topic: aiTopic }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const generated = await res.json();
+      // Pre-fill the manual form and open it for review before saving
+      setForm({
+        title:            generated.title            || '',
+        story:            generated.story            || '',
+        brokenCode:       generated.brokenCode       || '',
+        expectedBehavior: generated.expectedBehavior || '',
+        actualBehavior:   generated.actualBehavior   || '',
+        difficulty:       aiDiff,
+        language:         aiLang,
+        xpReward:         generated.xpReward         ?? 500,
+        coinReward:       generated.coinReward        ?? 100,
+        timeLimit:        generated.timeLimit         ?? 600,
+        worldId:          generated.worldId           || 'world-ai',
+      });
+      setShowForm(true);
+      toast.success('AI generated a case! Review and save it below.');
+    } catch (e: any) {
+      toast.error(`AI generation failed: ${e.message}`);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   // Guard: only admins can access this page
   if (!profile?.isAdmin) {
@@ -133,7 +173,47 @@ export function Admin() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
 
-        {/* Create Case Form */}
+        {/* AI Case Generator */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-2xl bg-white/[0.02] backdrop-blur-xl border border-purple-500/20 p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 pointer-events-none" />
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Wand2 size={16} className="text-purple-400" />
+              <h2 className="text-sm font-extrabold uppercase tracking-tighter text-white">Generate Case with Gemini AI</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Language</label>
+                <select value={aiLang} onChange={e => setAiLang(e.target.value as any)} className="w-full bg-black/60 border border-white/[0.05] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500/40 transition-all">
+                  {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Difficulty</label>
+                <select value={aiDiff} onChange={e => setAiDiff(e.target.value as any)} className="w-full bg-black/60 border border-white/[0.05] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500/40 transition-all">
+                  {DIFFICULTIES.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-1">Topic hint (optional)</label>
+                <input value={aiTopic} onChange={e => setAiTopic(e.target.value)} placeholder="e.g. async race condition" className="w-full bg-black/60 border border-white/[0.05] rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/40 transition-all" />
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateWithAI}
+              disabled={aiGenerating}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold text-xs uppercase tracking-widest rounded-xl disabled:opacity-60 hover:from-purple-500 hover:to-purple-400 transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+            >
+              {aiGenerating ? <><Loader2 size={14} className="animate-spin" /> Generating...</> : <><Wand2 size={14} /> Generate Case</>}
+            </button>
+          </div>
+        </motion.div>
+
         {showForm && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}

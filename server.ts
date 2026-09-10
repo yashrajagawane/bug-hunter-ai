@@ -380,6 +380,73 @@ Evaluate if the solution is correct, efficient, and fixes the bug based on the c
     }
   });
 
+
+  // ─────────────────────────────────────────────
+  // 5. AI Case Generator Endpoint (Admin-only)
+  // ─────────────────────────────────────────────
+  const GenerateCaseSchema = z.object({
+    language:   z.enum(['JavaScript', 'Python', 'Java', 'C++']),
+    difficulty: z.enum(['Beginner', 'Intermediate', 'Advanced', 'Expert']),
+    topic:      z.string().min(1).max(200).optional(),
+  });
+
+  app.post('/api/ai/generate-case', requireAuth, aiLimiter, async (req, res) => {
+    try {
+      const { language, difficulty, topic } = GenerateCaseSchema.parse(req.body);
+
+      const prompt = `You are an expert software engineering educator creating debugging challenges for a gamified platform called "AI Debug Detective".
+
+Generate a realistic, educational debugging case with the following requirements:
+- Language: ${language}
+- Difficulty: ${difficulty}
+- Topic hint: ${topic || 'any common bug type'}
+
+The broken code must:
+1. Compile/run but produce WRONG output or throw a runtime error
+2. Contain exactly ONE clear bug that a ${difficulty.toLowerCase()} developer would realistically make
+3. Be 15-40 lines of code (not trivially short, not overly long)
+4. Have a clear narrative (e.g. banking system, drone navigation, e-commerce, etc.)
+
+Return a complete JSON case object. The brokenCode must be valid ${language} code with the bug present.`;
+
+      const response = await callGeminiWithRetry(
+        'gemini-3.6-flash',
+        prompt,
+        {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title:            { type: Type.STRING, description: 'Short, evocative title (4-7 words)' },
+              story:            { type: Type.STRING, description: 'Narrative incident report (2-3 sentences)' },
+              brokenCode:       { type: Type.STRING, description: `Complete ${language} code with the bug` },
+              expectedBehavior: { type: Type.STRING, description: 'What the correct output/behaviour should be' },
+              actualBehavior:   { type: Type.STRING, description: 'What actually happens (error or wrong output)' },
+              xpReward:         { type: Type.NUMBER, description: 'XP reward (100-2000)' },
+              coinReward:       { type: Type.NUMBER, description: 'Coin reward (50-500)' },
+              timeLimit:        { type: Type.NUMBER, description: 'Time limit in seconds (300-1800)' },
+            },
+            required: ['title', 'story', 'brokenCode', 'expectedBehavior', 'actualBehavior', 'xpReward', 'coinReward', 'timeLimit'],
+          },
+        }
+      );
+
+      const text = response.text;
+      if (!text) throw new Error('Empty AI response');
+
+      const generated = JSON.parse(text);
+      // Inject the meta fields that Gemini shouldn't choose
+      generated.language   = language;
+      generated.difficulty = difficulty;
+      generated.worldId    = 'world-ai';
+
+      res.json(generated);
+    } catch (error: any) {
+      console.error('Case generation error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ─────────────────────────────────────────────
   // Vite middleware / Static serving
   // ─────────────────────────────────────────────
