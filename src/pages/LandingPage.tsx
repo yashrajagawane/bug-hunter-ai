@@ -2,19 +2,24 @@ import React, { useEffect } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Terminal, ShieldAlert, Cpu } from 'lucide-react';
+import { ChevronRight, Terminal, ShieldAlert, Cpu, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 export function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
 
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
     try {
       await signInWithPopup(auth, googleAuthProvider);
       navigate('/dashboard');
     } catch (error) {
       console.error("Login failed:", error);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -43,8 +48,10 @@ export function LandingPage() {
           </div>
           <button 
             onClick={handleLogin}
-            className="px-5 py-2 text-sm font-bold text-white bg-cyan-600/20 border border-cyan-500/50 rounded hover:bg-cyan-500/30 transition-all duration-200 uppercase tracking-widest"
+            disabled={isLoggingIn}
+            className="px-5 py-2 text-sm font-bold text-white bg-cyan-600/20 border border-cyan-500/50 rounded hover:bg-cyan-500/30 transition-all duration-200 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
+            {isLoggingIn && <Loader2 size={14} className="animate-spin" />}
             Agent Login
           </button>
         </div>
@@ -71,18 +78,42 @@ export function LandingPage() {
           <div className="flex items-center gap-4 pt-8">
             <button 
               onClick={handleLogin}
-              className="group flex items-center gap-2 px-8 py-4 bg-cyan-600 text-white rounded font-extrabold text-lg uppercase tracking-widest hover:bg-cyan-500 transition-all duration-300 shadow-[0_10px_20px_rgba(8,145,178,0.3)] transform hover:-translate-y-1"
+              disabled={isLoggingIn}
+              className="group flex items-center gap-2 px-8 py-4 bg-cyan-600 text-white rounded font-extrabold text-lg uppercase tracking-widest hover:bg-cyan-500 transition-all duration-300 shadow-[0_10px_20px_rgba(8,145,178,0.3)] transform hover:-translate-y-1 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
             >
-              Start Investigation
-              <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              {isLoggingIn
+                ? <><Loader2 size={20} className="animate-spin" /> Authenticating...</>
+                : <><span>Start Investigation</span><ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></>
+              }
             </button>
-            <button onClick={handleLogin} className="px-8 py-4 bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] text-slate-200 rounded font-bold text-lg uppercase tracking-widest hover:border-cyan-500 hover:text-cyan-400 hover:bg-white/[0.05] transition-all duration-300">
+            <button
+              onClick={handleLogin}
+              disabled={isLoggingIn}
+              className="px-8 py-4 bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] text-slate-200 rounded font-bold text-lg uppercase tracking-widest hover:border-cyan-500 hover:text-cyan-400 hover:bg-white/[0.05] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Explore Cases
             </button>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mt-32">
+        {/* Stats strip — social proof */}
+        <div className="flex flex-wrap justify-center gap-8 md:gap-16 mt-20 py-6 border-y border-white/[0.05]">
+          {[
+            { icon: '🕵️', value: 12, label: 'Cases' },
+            { icon: '⚡', value: 4, label: 'Languages' },
+            { icon: '🏆', value: 14, label: 'Achievements' },
+          ].map((stat, i) => (
+            <div key={i} className="flex items-center gap-3 text-center">
+              <span className="text-2xl">{stat.icon}</span>
+              <div>
+                <div className="text-2xl md:text-3xl font-extrabold text-white tracking-tighter">{stat.value}+</div>
+                <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500">{stat.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 mt-16">
           <FeatureCard 
             icon={<Cpu size={24} className="text-purple-400" />}
             title="REAL-WORLD MYSTERIES"

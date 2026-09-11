@@ -450,7 +450,100 @@ export function Investigation() {
   const monacoLanguage = currentCase ? getMonacoLanguage(currentCase.language) : 'plaintext';
 
   if (isCaseLoading || !currentCase) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#050505] text-cyan-400 font-mono text-sm uppercase tracking-widest animate-pulse">Loading Case File...</div>;
+    return (
+      <div className="h-screen flex flex-col bg-[#050505] text-slate-300 font-sans overflow-hidden relative">
+        {/* Ambient orbs */}
+        <div className="absolute top-0 left-1/4 w-[50%] h-[50%] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
+
+        {/* Skeleton Navbar */}
+        <div className="h-14 border-b border-white/[0.05] bg-black/40 backdrop-blur-xl flex items-center px-4 gap-4 shrink-0 relative z-10">
+          <div className="w-5 h-5 rounded bg-white/[0.05] animate-pulse" />
+          <div className="h-3 w-32 rounded bg-white/[0.08] animate-pulse" />
+          <div className="h-3 w-20 rounded bg-white/[0.05] animate-pulse ml-2" />
+        </div>
+
+        {/* Skeleton Panels */}
+        <div className="flex-1 flex overflow-hidden relative z-10">
+          {/* Left panel skeleton */}
+          <div className="hidden md:flex w-80 border-r border-white/[0.05] bg-white/[0.02] flex-col p-4 gap-6 shrink-0">
+            <div className="space-y-3">
+              <div className="h-2 w-16 bg-white/[0.06] rounded animate-pulse" />
+              <div className="h-5 w-44 bg-white/[0.08] rounded animate-pulse" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-5 w-20 bg-red-500/10 rounded animate-pulse" />
+              <div className="h-5 w-16 bg-blue-500/10 rounded animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-2 w-12 bg-white/[0.06] rounded animate-pulse" />
+              <div className="h-3 w-full bg-white/[0.05] rounded animate-pulse" />
+              <div className="h-3 w-4/5 bg-white/[0.05] rounded animate-pulse" />
+              <div className="h-3 w-3/5 bg-white/[0.04] rounded animate-pulse" />
+            </div>
+            <div className="p-4 rounded-xl bg-black/40 border border-white/[0.05] space-y-2">
+              <div className="h-2 w-24 bg-cyan-500/10 rounded animate-pulse" />
+              <div className="h-3 w-full bg-white/[0.05] rounded animate-pulse" />
+              <div className="h-3 w-3/4 bg-white/[0.05] rounded animate-pulse" />
+            </div>
+          </div>
+
+          {/* Center panel skeleton */}
+          <div className="flex-1 flex flex-col min-w-0 bg-black/60">
+            {/* Editor toolbar */}
+            <div className="flex items-center justify-between px-4 py-2 bg-black/80 border-b border-white/[0.05]">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1.5 mr-4">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/30" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/30" />
+                </div>
+                <div className="h-2 w-28 bg-white/[0.06] rounded animate-pulse" />
+              </div>
+              <div className="flex gap-2">
+                <div className="h-6 w-14 bg-white/[0.05] rounded animate-pulse" />
+                <div className="h-6 w-20 bg-cyan-500/10 rounded animate-pulse" />
+              </div>
+            </div>
+            {/* Editor area */}
+            <div className="flex-1 bg-black/40 p-4 space-y-2">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="h-3 w-6 bg-white/[0.04] rounded animate-pulse shrink-0" />
+                  <div className="h-3 rounded bg-white/[0.05] animate-pulse" style={{ width: `${30 + Math.random() * 50}%`, animationDelay: `${i * 80}ms` }} />
+                </div>
+              ))}
+            </div>
+            {/* Console area */}
+            <div className="h-40 border-t border-white/[0.05] bg-black/80 p-4 space-y-2">
+              <div className="h-2 w-24 bg-white/[0.06] rounded animate-pulse" />
+              <div className="h-3 w-3/4 bg-white/[0.04] rounded animate-pulse" />
+              <div className="h-3 w-1/2 bg-white/[0.03] rounded animate-pulse" />
+            </div>
+          </div>
+
+          {/* Right panel skeleton */}
+          <div className="hidden md:flex w-80 border-l border-white/[0.05] bg-white/[0.02] flex-col p-6 gap-4 shrink-0">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3.5 h-3.5 bg-purple-500/20 rounded animate-pulse" />
+              <div className="h-2 w-28 bg-white/[0.06] rounded animate-pulse" />
+            </div>
+            {/* Chat bubbles */}
+            <div className="p-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 space-y-2">
+              <div className="h-2 w-16 bg-cyan-500/10 rounded animate-pulse" />
+              <div className="h-3 w-full bg-white/[0.05] rounded animate-pulse" />
+              <div className="h-3 w-4/5 bg-white/[0.04] rounded animate-pulse" />
+            </div>
+            <div className="p-4 rounded-xl border border-white/[0.05] bg-black/40 ml-4 space-y-2">
+              <div className="h-3 w-3/4 bg-white/[0.05] rounded animate-pulse" />
+            </div>
+            <div className="mt-auto">
+              <div className="h-10 w-full bg-white/[0.04] rounded-xl border border-white/[0.05] animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

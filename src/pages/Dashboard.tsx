@@ -80,6 +80,20 @@ export function Dashboard() {
     enabled: !!userId,
   });
 
+  const { data: solvedCaseIds = new Set<string>() } = useQuery({
+    queryKey: ['solved-case-ids', userId],
+    queryFn: async (): Promise<Set<string>> => {
+      const q = query(
+        collection(db, 'attempts'),
+        where('userId', '==', userId),
+        where('completed', '==', true),
+      );
+      const snap = await getDocs(q);
+      return new Set(snap.docs.map(d => d.data().caseId as string));
+    },
+    enabled: !!userId,
+  });
+
   // Filtered cases: by difficulty tab + search query
   const filteredCases = cases.filter(c => {
     const matchesDiff = difficultyFilter === 'All' || c.difficulty === difficultyFilter;
@@ -345,8 +359,10 @@ export function Dashboard() {
               </div>
             ) : filteredCases.length > 0 ? (
               <motion.div variants={container} initial="hidden" animate="show" className="space-y-3">
-                {filteredCases.map((c: Case) => (
-                  <motion.div variants={item} key={c.id} className="relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] rounded-xl p-4 flex items-center justify-between hover:border-cyan-500/30 hover:bg-white/[0.04] transition-all cursor-pointer group shadow-sm" onClick={() => navigate(`/case/${c.id}`)}>
+                {filteredCases.map((c: Case) => {
+                  const isSolved = solvedCaseIds.has(c.id);
+                  return (
+                  <motion.div variants={item} key={c.id} className={`relative overflow-hidden bg-white/[0.02] backdrop-blur-xl border rounded-xl p-4 flex items-center justify-between hover:bg-white/[0.04] transition-all cursor-pointer group shadow-sm ${isSolved ? 'border-green-500/20 hover:border-green-500/40' : 'border-white/[0.05] hover:border-cyan-500/30'}`} onClick={() => navigate(`/case/${c.id}`)}>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-cyan-400/80 group-hover:text-cyan-400 transition-colors">{c.language}</div>
@@ -356,6 +372,11 @@ export function Dashboard() {
                           c.difficulty === 'Advanced' ? 'text-orange-400 bg-orange-500/10 border-orange-500/20' :
                           'text-red-400 bg-red-500/10 border-red-500/20'
                         }`}>{c.difficulty}</span>
+                        {isSolved && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border text-green-400 bg-green-500/10 border-green-500/20 flex items-center gap-1">
+                            ✅ Solved
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-slate-200 font-extrabold uppercase tracking-tight group-hover:text-white transition-colors">{c.title}</h4>
                     </div>
@@ -364,13 +385,30 @@ export function Dashboard() {
                       <ChevronRight size={18} className="text-slate-600 group-hover:text-cyan-400 transition-colors" />
                     </div>
                   </motion.div>
-                ))}
+                  );
+                })}
               </motion.div>
             ) : (
-              <div className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] border-dashed rounded-xl p-8 text-center text-slate-500 text-sm font-medium">
-                {searchQuery || difficultyFilter !== 'All'
-                  ? 'No cases match your filters. Try a different search or difficulty.'
-                  : 'Loading cases or no cases found.'}
+              <div className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] border-dashed rounded-xl p-12 flex flex-col items-center justify-center gap-4 text-center">
+                <span className="text-4xl">🔍</span>
+                <h4 className="text-white font-extrabold uppercase tracking-tighter text-lg">No cases found</h4>
+                <p className="text-slate-500 text-sm max-w-xs">
+                  {searchQuery && difficultyFilter !== 'All'
+                    ? `No ${difficultyFilter} cases matching "${searchQuery}"`
+                    : searchQuery
+                    ? `No results for "${searchQuery}"`
+                    : difficultyFilter !== 'All'
+                    ? `No ${difficultyFilter} cases available yet`
+                    : 'No cases loaded. Try refreshing the page.'}
+                </p>
+                {(searchQuery || difficultyFilter !== 'All') && (
+                  <button
+                    onClick={() => { setSearchQuery(''); setDifficultyFilter('All'); }}
+                    className="mt-2 px-5 py-2 text-[10px] font-bold uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/20 transition-all"
+                  >
+                    Clear Filters
+                  </button>
+                )}
               </div>
             )}
           </div>
