@@ -1,34 +1,13 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Award, Target, Zap, Brain, Code, Calendar } from 'lucide-react';
+import { ArrowLeft, Award, Target, Zap, Brain, Code, Calendar, Trophy } from 'lucide-react';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import type { Attempt } from '../lib/types';
 import { ACHIEVEMENTS, RARITY_STYLES, RARITY_GLOW, getUnlockedAchievements } from '../lib/achievements';
-
-/** Derives a rank title from level — shared logic with Dashboard */
-function getRankTitle(level: number): string {
-  if (level >= 50) return 'Grand Master Detective';
-  if (level >= 30) return 'Master Detective';
-  if (level >= 20) return 'Expert Investigator';
-  if (level >= 10) return 'Senior Analyst';
-  if (level >= 5)  return 'Junior Detective';
-  return 'Rookie Debugger';
-}
-
-/** Formats a timestamp to a human-readable relative string */
-function timeAgo(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return `${Math.floor(diffDays / 30)} months ago`;
-}
+import { getRankTitle, timeAgo } from '../lib/utils';
 
 /** Builds heatmap data from real attempt dates */
 function buildHeatmapData(attempts: Attempt[]): { date: Date; level: number }[] {
@@ -176,6 +155,12 @@ export function Profile() {
             <span className="text-xl font-extrabold tracking-tighter glow-cyan italic uppercase text-white">Detective Profile</span>
           </div>
         </div>
+        <button
+          onClick={() => navigate('/leaderboard')}
+          className="flex items-center gap-2 px-4 py-2 bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-yellow-400 font-bold text-xs uppercase tracking-widest rounded-xl transition-all"
+        >
+          <Trophy size={14} /> Leaderboard
+        </button>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-12">

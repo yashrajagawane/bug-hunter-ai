@@ -96,7 +96,18 @@ export function Investigation() {
   const [showAiPanel, setShowAiPanel] = useState(true);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'brief' | 'code' | 'ai'>('code');
+  const [isMobile, setIsMobile] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Detect mobile breakpoint
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Keyboard shortcuts: Ctrl+Enter = run code, Ctrl+S = trigger save toast
   useEffect(() => {
@@ -495,12 +506,12 @@ export function Investigation() {
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden relative z-10">
         
-        {/* Left Panel - Case Info (collapsible) */}
-        {showCasePanel && (
+        {/* Left Panel - Case Info */}
+        {(isMobile ? activeTab === 'brief' : showCasePanel) && (
         <motion.div
-          initial={{ width: 320, opacity: 1 }}
-          animate={{ width: showCasePanel ? 320 : 0, opacity: showCasePanel ? 1 : 0 }}
-          className="w-80 border-r border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 overflow-y-auto custom-scrollbar shadow-xl"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          className="w-full md:w-80 border-r border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 overflow-y-auto custom-scrollbar shadow-xl"
         >
           <div className="p-4 border-b border-white/[0.05]">
             <div className="mb-4">
@@ -543,7 +554,7 @@ export function Investigation() {
         )}
 
         {/* Center Panel - Code Editor & Console */}
-        <div className="flex-1 flex flex-col min-w-0 bg-black/60 relative">
+        <div className={`flex-1 flex-col min-w-0 bg-black/60 relative ${isMobile && activeTab !== 'code' ? 'hidden' : 'flex'}`}>
           <div className="flex items-center justify-between px-4 py-2 bg-black/80 backdrop-blur-xl border-b border-white/[0.05]">
             <div className="flex items-center gap-2">
               <div className="flex gap-1.5 mr-4">
@@ -605,8 +616,8 @@ export function Investigation() {
         </div>
 
         {/* Right Panel - AI Assistant (collapsible) */}
-        {showAiPanel && (
-        <div className="w-80 border-l border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 p-6 shadow-2xl relative">
+        {(isMobile ? activeTab === 'ai' : showAiPanel) && (
+        <div className="w-full md:w-80 border-l border-white/[0.05] bg-white/[0.02] backdrop-blur-xl flex flex-col shrink-0 p-6 shadow-2xl relative">
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           <div className="mb-4">
              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2 mb-4">
@@ -677,6 +688,28 @@ export function Investigation() {
           </button>
         </div>
         )}
+      </div>
+
+      {/* Mobile Bottom Tab Bar — hidden on desktop */}
+      <div className="md:hidden flex border-t border-white/[0.05] bg-black/80 backdrop-blur-xl shrink-0 z-20">
+        {([
+          { key: 'brief', label: 'Brief',  icon: '📋' },
+          { key: 'code',  label: 'Code',   icon: '💻' },
+          { key: 'ai',    label: 'AI',     icon: '🤖' },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 flex flex-col items-center justify-center py-3 gap-1 text-[10px] font-bold uppercase tracking-widest transition-all border-t-2 ${
+              activeTab === tab.key
+                ? 'text-cyan-400 border-cyan-400 bg-cyan-500/5'
+                : 'text-slate-500 border-transparent hover:text-slate-300'
+            }`}
+          >
+            <span className="text-base leading-none">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -8,19 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { seedCasesIfEmpty } from '../lib/seed';
 import type { Case, Attempt } from '../lib/types';
-
-/**
- * Derives a rank title from level.
- * Replaces the hardcoded "Rookie Debugger" string.
- */
-function getRankTitle(level: number): string {
-  if (level >= 50) return 'Grand Master Detective';
-  if (level >= 30) return 'Master Detective';
-  if (level >= 20) return 'Expert Investigator';
-  if (level >= 10) return 'Senior Analyst';
-  if (level >= 5)  return 'Junior Detective';
-  return 'Rookie Debugger';
-}
+import { getRankTitle } from '../lib/utils';
 
 const fetchCases = async (): Promise<Case[]> => {
   const querySnapshot = await getDocs(collection(db, 'cases'));

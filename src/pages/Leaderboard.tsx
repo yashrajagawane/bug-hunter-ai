@@ -6,6 +6,7 @@ import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { getRankTitle } from '../lib/utils';
 
 interface LeaderboardEntry {
   uid: string;
@@ -14,15 +15,6 @@ interface LeaderboardEntry {
   level: number;
   casesSolved: number;
   streak: number;
-}
-
-function getRankTitle(level: number): string {
-  if (level >= 50) return 'Grand Master';
-  if (level >= 30) return 'Master';
-  if (level >= 20) return 'Expert';
-  if (level >= 10) return 'Senior';
-  if (level >= 5)  return 'Junior';
-  return 'Rookie';
 }
 
 const MEDAL_COLORS = [

@@ -37,6 +37,16 @@ export function Admin() {
   const [aiTopic, setAiTopic]     = useState('');
   const [aiLang, setAiLang]       = useState<typeof LANGUAGES[number]>('JavaScript');
   const [aiDiff, setAiDiff]       = useState<typeof DIFFICULTIES[number]>('Intermediate');
+  const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [serverTime, setServerTime] = useState<string | null>(null);
+
+  // Health check on mount
+  React.useEffect(() => {
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(d => { setServerStatus('online'); setServerTime(d.timestamp); })
+      .catch(() => setServerStatus('offline'));
+  }, []);
 
   const handleGenerateWithAI = async () => {
     if (!auth.currentUser) return;
@@ -158,9 +168,24 @@ export function Admin() {
           <button onClick={() => navigate('/dashboard')} className="text-slate-500 hover:text-white transition-colors">
             <ArrowLeft size={20} />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ShieldAlert size={16} className="text-purple-400" />
             <span className="text-xl font-extrabold tracking-tighter italic uppercase text-white">Admin Panel</span>
+            {/* Server health badge */}
+            <div
+              title={serverTime ? `Server time: ${new Date(serverTime).toLocaleTimeString()}` : 'Checking...'}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all ${
+                serverStatus === 'online'   ? 'text-green-400 bg-green-500/10 border-green-500/30' :
+                serverStatus === 'offline'  ? 'text-red-400 bg-red-500/10 border-red-500/30 animate-pulse' :
+                                             'text-slate-500 bg-white/[0.03] border-white/[0.05]'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                serverStatus === 'online'  ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]' :
+                serverStatus === 'offline' ? 'bg-red-400' : 'bg-slate-500'
+              }`} />
+              {serverStatus === 'checking' ? '...' : serverStatus}
+            </div>
           </div>
         </div>
         <button

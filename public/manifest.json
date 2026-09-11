@@ -1,0 +1,38 @@
+{
+  "name": "AI Debug Detective",
+  "short_name": "Debug Detective",
+  "description": "Gamified debugging challenges powered by Gemini AI",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050505",
+  "theme_color": "#06b6d4",
+  "categories": ["education", "games", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "Go to case browser"
+    },
+    {
+      "name": "Leaderboard",
+      "url": "/leaderboard",
+      "description": "View global rankings"
+    }
+  ]
+}
