@@ -11,6 +11,7 @@ import { Toaster } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 import { AuthProvider } from './components/AuthProvider';
 import { useAuthStore } from './store/authStore';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // ─────────────────────────────────────────────
 // Lazy-loaded routes — each page is a separate bundle chunk
@@ -116,42 +117,44 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <PageTitleUpdater />
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={
-                  <RouteWithErrorBoundary><LandingPage /></RouteWithErrorBoundary>
-                } />
-                <Route path="/dashboard" element={
-                  <ProtectedRoute>
-                    <RouteWithErrorBoundary><Dashboard /></RouteWithErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                <Route path="/case/:caseId" element={
-                  <ProtectedRoute>
-                    <RouteWithErrorBoundary><Investigation /></RouteWithErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                <Route path="/profile" element={
-                  <ProtectedRoute>
-                    <RouteWithErrorBoundary><Profile /></RouteWithErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                <Route path="/leaderboard" element={
-                  <ProtectedRoute>
-                    <RouteWithErrorBoundary><Leaderboard /></RouteWithErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                <Route path="/admin" element={
-                  <ProtectedRoute>
-                    <RouteWithErrorBoundary><Admin /></RouteWithErrorBoundary>
-                  </ProtectedRoute>
-                } />
-                {/* 404 catch-all */}
-                <Route path="*" element={
-                  <RouteWithErrorBoundary><NotFound /></RouteWithErrorBoundary>
-                } />
-              </Routes>
-            </Suspense>
+            <AnimatePresence mode="wait">
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={
+                    <RouteWithErrorBoundary><LandingPage /></RouteWithErrorBoundary>
+                  } />
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute>
+                      <RouteWithErrorBoundary><Dashboard /></RouteWithErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/case/:caseId" element={
+                    <ProtectedRoute>
+                      <RouteWithErrorBoundary><Investigation /></RouteWithErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <RouteWithErrorBoundary><Profile /></RouteWithErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/leaderboard" element={
+                    <ProtectedRoute>
+                      <RouteWithErrorBoundary><Leaderboard /></RouteWithErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin" element={
+                    <ProtectedRoute>
+                      <RouteWithErrorBoundary><Admin /></RouteWithErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  {/* 404 catch-all */}
+                  <Route path="*" element={
+                    <RouteWithErrorBoundary><NotFound /></RouteWithErrorBoundary>
+                  } />
+                </Routes>
+              </Suspense>
+            </AnimatePresence>
             <Toaster theme="dark" position="top-right" className="font-sans" toastOptions={{
               style: { background: '#0f172a', border: '1px solid #1e293b', color: '#f1f5f9' },
               classNames: {

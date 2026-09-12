@@ -252,13 +252,31 @@ export function Profile() {
                           <div className="text-[9px] opacity-70">{a.description}</div>
                         </div>
                       ))}
-                      {locked.map(a => (
-                        <div key={a.id} className="rounded-xl border border-white/[0.05] bg-white/[0.01] p-3 flex flex-col items-center text-center gap-1 opacity-30 grayscale">
+                      {locked.map(a => {
+                        // Derive progress hint from the achievement's check
+                        const desc = a.description.toLowerCase();
+                        let progress = '';
+                        if (desc.includes('solve') && desc.match(/\d+/)) {
+                          const target = parseInt(desc.match(/\d+/)![0]);
+                          progress = `${Math.min(profile.casesSolved, target)}/${target}`;
+                        } else if (desc.includes('streak') && desc.match(/\d+/)) {
+                          const target = parseInt(desc.match(/\d+/)![0]);
+                          progress = `${Math.min(profile.streak, target)}/${target}`;
+                        } else if (desc.includes('level') && desc.match(/\d+/)) {
+                          const target = parseInt(desc.match(/\d+/)![0]);
+                          progress = `${Math.min(profile.level, target)}/${target}`;
+                        }
+                        return (
+                        <div key={a.id} className="rounded-xl border border-white/[0.05] bg-white/[0.01] p-3 flex flex-col items-center text-center gap-1 opacity-40 grayscale hover:opacity-60 transition-opacity">
                           <span className="text-2xl">🔒</span>
                           <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{a.title}</div>
                           <div className="text-[9px] text-slate-600">{a.description}</div>
+                          {progress && (
+                            <div className="text-[9px] font-mono text-cyan-500/60 mt-0.5">{progress}</div>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );

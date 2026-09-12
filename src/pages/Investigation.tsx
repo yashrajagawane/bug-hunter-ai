@@ -688,9 +688,27 @@ export function Investigation() {
           </div>
           
           {/* Console / Test Results */}
-          <div className="h-40 border-t border-white/[0.05] bg-black/80 backdrop-blur-xl flex flex-col shrink-0 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-            <div className="flex items-center justify-between px-4 py-1 border-b border-white/[0.05] bg-white/[0.02]">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><Terminal size={10} className="inline mr-1"/> Debug Terminal</span>
+          <div className={`h-40 border-t ${
+            consoleOutput.includes('SYSTEM ERROR') || consoleOutput.includes('Score: 0/100') || consoleOutput.includes('COMPILE ERROR')
+              ? 'border-red-500/50 bg-red-950/20 shadow-[0_-5px_20px_rgba(239,68,68,0.1)]'
+              : consoleOutput.includes('Score: 100/100')
+              ? 'border-green-500/50 bg-green-950/20 shadow-[0_-5px_20px_rgba(34,197,94,0.1)]'
+              : 'border-white/[0.05] bg-black/80 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]'
+          } backdrop-blur-xl flex flex-col shrink-0 transition-colors duration-500`}>
+            <div className={`flex items-center justify-between px-4 py-1 border-b ${
+              consoleOutput.includes('SYSTEM ERROR') || consoleOutput.includes('Score: 0/100') || consoleOutput.includes('COMPILE ERROR')
+                ? 'border-red-500/20 bg-red-500/10'
+                : consoleOutput.includes('Score: 100/100')
+                ? 'border-green-500/20 bg-green-500/10'
+                : 'border-white/[0.05] bg-white/[0.02]'
+            }`}>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                consoleOutput.includes('SYSTEM ERROR') || consoleOutput.includes('Score: 0/100') || consoleOutput.includes('COMPILE ERROR')
+                  ? 'text-red-400'
+                  : consoleOutput.includes('Score: 100/100')
+                  ? 'text-green-400'
+                  : 'text-slate-400'
+              }`}><Terminal size={10} className="inline mr-1"/> Debug Terminal</span>
               <button
                 onClick={async () => {
                   const ok = await navigator.clipboard.writeText(consoleOutput).then(() => true).catch(() => false);
@@ -702,7 +720,13 @@ export function Investigation() {
                 {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
               </button>
             </div>
-            <div className="flex-1 p-4 font-mono text-xs overflow-y-auto whitespace-pre-wrap text-slate-400">
+            <div className={`flex-1 p-4 font-mono text-xs overflow-y-auto whitespace-pre-wrap ${
+              consoleOutput.includes('SYSTEM ERROR') || consoleOutput.includes('Score: 0/100') || consoleOutput.includes('COMPILE ERROR')
+                ? 'text-red-200'
+                : consoleOutput.includes('Score: 100/100')
+                ? 'text-green-200'
+                : 'text-slate-400'
+            }`}>
               {consoleOutput}
             </div>
           </div>

@@ -104,6 +104,11 @@ export function Leaderboard() {
               const rank = podiumIdx + 1;
               const heights = [' h-28', 'h-36', 'h-24'];
               const isMe = entry.uid === user?.uid;
+              const avatarGradients = [
+                'from-amber-400/40 to-yellow-600/40 border-yellow-400',
+                'from-yellow-300/40 to-amber-500/40 border-yellow-300',
+                'from-orange-400/30 to-amber-600/30 border-orange-400/60',
+              ];
               return (
                 <motion.div
                   key={entry.uid}
@@ -115,12 +120,13 @@ export function Leaderboard() {
                   <div className={`text-2xl font-black ${MEDAL_COLORS[podiumIdx]}`}>
                     {podiumIdx === 0 ? '🥇' : podiumIdx === 1 ? '🥈' : '🥉'}
                   </div>
-                  <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold text-xl text-white ${isMe ? 'border-cyan-400 bg-cyan-500/20' : 'border-white/20 bg-white/5'}`}>
+                  <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center font-bold text-xl text-white bg-gradient-to-br shadow-lg ${isMe ? 'border-cyan-400 from-cyan-500/30 to-purple-500/30' : avatarGradients[podiumIdx]}`}>
                     {entry.username?.charAt(0).toUpperCase()}
                   </div>
                   <div className="text-center">
                     <div className={`text-xs font-extrabold uppercase tracking-tight ${isMe ? 'text-cyan-400' : 'text-white'} truncate max-w-[80px]`}>{entry.username}</div>
                     <div className="text-[10px] font-mono text-slate-400">{entry[fieldMap[activeTab]].toLocaleString()}</div>
+                    <div className="text-[9px] text-slate-500 uppercase tracking-widest">{getRankTitle(entry.level)}</div>
                   </div>
                 </motion.div>
               );

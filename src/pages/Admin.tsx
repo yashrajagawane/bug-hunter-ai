@@ -316,7 +316,17 @@ export function Admin() {
                   <div className="font-mono text-[10px] text-slate-500 shrink-0 w-20">{c.id}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-white uppercase tracking-tight truncate">{c.title}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{c.language} · {c.difficulty} · {c.xpReward} XP</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border text-cyan-400 bg-cyan-500/10 border-cyan-500/20">{c.language}</span>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                        c.difficulty === 'Beginner' ? 'text-green-400 bg-green-500/10 border-green-500/20' :
+                        c.difficulty === 'Intermediate' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' :
+                        c.difficulty === 'Advanced' ? 'text-orange-400 bg-orange-500/10 border-orange-500/20' :
+                        'text-red-400 bg-red-500/10 border-red-500/20'
+                      }`}>{c.difficulty}</span>
+                      <span className="text-[9px] font-mono text-yellow-400/70">+{c.xpReward} XP</span>
+                      <span className="text-[9px] font-mono text-slate-500">⏱ {Math.floor((c.timeLimit || 600) / 60)}m</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => { if (confirm(`Delete "${c.title}"?`)) deleteCase.mutate(c.id); }}

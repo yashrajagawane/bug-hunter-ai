@@ -377,6 +377,11 @@ export function Dashboard() {
                             ✅ Solved
                           </span>
                         )}
+                        {c.timeLimit && (
+                          <span className="text-[9px] font-mono tracking-wider px-1.5 py-0.5 rounded border text-slate-400 bg-white/5 border-white/10 flex items-center gap-1">
+                            ⏱ {Math.floor(c.timeLimit / 60)}m
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-slate-200 font-extrabold uppercase tracking-tight group-hover:text-white transition-colors">{c.title}</h4>
                     </div>
