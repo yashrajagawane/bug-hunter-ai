@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor, { DiffEditor } from '@monaco-editor/react';
-import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2, BookOpen, MessageSquare, PanelLeftClose, PanelLeftOpen, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Sparkles, Terminal, Play, CheckCircle2, BookOpen, MessageSquare, PanelLeftClose, PanelLeftOpen, Copy, Check, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
@@ -92,6 +92,8 @@ export function Investigation() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isDiffMode, setIsDiffMode] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintLoadingLevel, setHintLoadingLevel] = useState<number | null>(null);
+
   const [showCasePanel, setShowCasePanel] = useState(true);
   const [showAiPanel, setShowAiPanel] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -249,7 +251,8 @@ export function Investigation() {
     const userRef = doc(db, 'users', auth.currentUser.uid);
 
     setIsAiLoading(true);
-    
+    setHintLoadingLevel(level);
+
     try {
       // Deduct coins
       await updateDoc(userRef, { coins: newCoins });
@@ -284,6 +287,7 @@ export function Investigation() {
       toast.error('Failed to get hint. Coins refunded.');
     } finally {
       setIsAiLoading(false);
+      setHintLoadingLevel(null);
     }
   };
 
@@ -769,20 +773,28 @@ export function Investigation() {
                 { level: 1, label: 'Nudge',   desc: 'Conceptual direction', cost: 10,  color: 'hover:border-cyan-500/50 hover:text-cyan-400' },
                 { level: 2, label: 'Clue',    desc: 'Specific area',        cost: 25,  color: 'hover:border-yellow-500/50 hover:text-yellow-400' },
                 { level: 3, label: 'Reveal',  desc: 'Near-solution guide',  cost: 50,  color: 'hover:border-red-500/50 hover:text-red-400' },
-              ] as const).map(h => (
+              ] as const).map(h => {
+                const isThisLoading = hintLoadingLevel === h.level;
+                return (
                 <button
                   key={h.level}
                   onClick={() => handleAskHint(h.level)}
                   disabled={isAiLoading || (profile?.coins ?? 0) < h.cost}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border border-white/[0.05] bg-black/40 ${h.color} transition-all text-left group disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-md`}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border border-white/[0.05] bg-black/40 ${h.color} transition-all text-left group disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-md ${isThisLoading ? 'border-purple-500/40 bg-purple-500/5' : ''}`}
                 >
                   <div>
-                    <div className="text-xs font-bold text-slate-200 group-hover:inherit transition-colors">{h.label}</div>
-                    <div className="text-[10px] text-slate-500">{h.desc}</div>
+                    <div className="text-xs font-bold text-slate-200 group-hover:inherit transition-colors flex items-center gap-2">
+                      {isThisLoading && <Loader2 size={10} className="animate-spin text-purple-400 shrink-0" />}
+                      {h.label}
+                    </div>
+                    <div className="text-[10px] text-slate-500">{isThisLoading ? 'Detective AI thinking...' : h.desc}</div>
                   </div>
-                  <span className="text-[10px] font-mono font-bold text-yellow-500 shrink-0 ml-2">{h.cost}🪙</span>
+                  <span className="text-[10px] font-mono font-bold text-yellow-500 shrink-0 ml-2">
+                    {isThisLoading ? '...' : `${h.cost}🪙`}
+                  </span>
                 </button>
-              ))}
+                );
+              })}
               <div className="text-[9px] text-slate-600 text-center pt-1">{hintsUsed} hint{hintsUsed !== 1 ? 's' : ''} used this session</div>
             </div>
           </div>

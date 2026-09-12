@@ -140,6 +140,17 @@ export function Profile() {
   const rankTitle = getRankTitle(profile?.level || 1);
   const recentCompleted = attempts.filter(a => a.completed).slice(0, 5);
 
+  const { data: casesMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ['cases-map'],
+    queryFn: async () => {
+      const snap = await getDocs(collection(db, 'cases'));
+      const map: Record<string, string> = {};
+      snap.docs.forEach(d => { map[d.id] = (d.data().title as string) || d.id; });
+      return map;
+    },
+  });
+
+
   return (
     <div className="min-h-screen bg-[#050505] text-slate-300 font-sans relative overflow-x-hidden">
       {/* Ambient background orbs */}
@@ -294,7 +305,7 @@ export function Profile() {
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{timeAgo(new Date(attempt.createdAt))}</div>
                         <div className="text-sm font-bold text-white uppercase tracking-tight truncate">
-                          Solved Case: <span className="text-cyan-400">{attempt.caseId.toUpperCase()}</span>
+                          Solved: <span className="text-cyan-400">{casesMap[attempt.caseId] || attempt.caseId.toUpperCase()}</span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end shrink-0 gap-1">
