@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Target, Zap, ChevronRight, Award, Brain, Code, Search, SlidersHorizontal } from 'lucide-react';
+import { LogOut, Target, Zap, ChevronRight, Award, Brain, Code, Search, SlidersHorizontal, X } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
@@ -312,8 +312,13 @@ export function Dashboard() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search cases by title, language..."
-                  className="w-full bg-black/60 border border-white/[0.05] rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500/40 transition-all"
+                  className="w-full bg-black/60 border border-white/[0.05] rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500/40 transition-all"
                 />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
+                    <X size={14} />
+                  </button>
+                )}
               </div>
               <div className="flex gap-1.5 shrink-0">
                 {(['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'] as const).map(d => (
