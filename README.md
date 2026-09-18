@@ -4,6 +4,7 @@ A gamified debugging platform where detectives solve real code bugs with AI assi
 
 ---
 
+
 ## ✨ Features
 
 - **12+ Debugging Cases** across JavaScript, Python, Java, and C++
