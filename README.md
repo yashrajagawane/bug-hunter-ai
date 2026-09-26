@@ -4,7 +4,7 @@
 
 ### A gamified debugging platform where developers solve real code bugs with AI assistance.
 
-[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-brightgreen?style=for-the-badge)](https://github.com/yashrajagawane/bug-hunter-ai)
+[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-brightgreen?style=for-the-badge)](https://bug-hunter-ai-m1n1.onrender.com)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-bug--hunter--ai-181717?style=for-the-badge&logo=github)](https://github.com/yashrajagawane/bug-hunter-ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=node.js)](https://nodejs.org)
@@ -600,6 +600,8 @@ Once granted, `/admin` unlocks:
 ---
 
 ## 🚢 Production Deployment
+
+Live demo: [bug-hunter-ai-m1n1.onrender.com](https://bug-hunter-ai-m1n1.onrender.com)
 
 ### Build
 
