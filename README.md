@@ -177,10 +177,10 @@ Hints are contextual — the AI reads the actual buggy code, not a generic templ
 │                        CLIENT                           │
 │  React 19 + TypeScript + Vite                           │
 │                                                         │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐    │
-│  │ Zustand  │  │ TanStack │  │   Monaco Editor    │    │
-│  │  Store   │  │  Query   │  │  + react-markdown  │    │
-│  └──────────┘  └──────────┘  └────────────────────┘    │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐     │
+│  │ Zustand  │  │ TanStack │  │   Monaco Editor    │     │
+│  │  Store   │  │  Query   │  │  + react-markdown  │     │
+│  └──────────┘  └──────────┘  └────────────────────┘     │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTP (Bearer token)
 ┌────────────────────────▼────────────────────────────────┐
@@ -194,8 +194,8 @@ Hints are contextual — the AI reads the actual buggy code, not a generic templ
 └────────┬──────────────────────────┬─────────────────────┘
          │                          │
 ┌────────▼────────┐      ┌──────────▼───────────┐
-│  Google Gemini  │      │  Firebase Firestore   │
-│  API            │      │  + Firebase Auth      │
+│  Google Gemini  │      │  Firebase Firestore  │
+│  API            │      │  + Firebase Auth     │
 └─────────────────┘      └──────────────────────┘
 ```
 
