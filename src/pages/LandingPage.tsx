@@ -63,16 +63,17 @@ export function LandingPage() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
 
       <nav className="border-b border-white/[0.05] bg-black/40 backdrop-blur-xl sticky top-0 z-50 relative">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className='w-8 h-8 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded flex items-center justify-center text-black font-bold shadow-[0_0_10px_rgba(34,211,238,0.4)]'>D</div>
-            <span className="text-xl font-extrabold tracking-tighter glow-cyan italic text-white">AI DEBUG DETECTIVE</span>
-            <span className='ml-4 px-2 py-0.5 rounded border border-cyan-500/50 text-[10px] text-cyan-400 uppercase font-mono tracking-widest hidden sm:inline-block'>Case Mode: Alpha</span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0">
+            <div className='w-9 h-9 md:w-10 md:h-10 shrink-0 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded flex items-center justify-center text-black font-bold shadow-[0_0_10px_rgba(34,211,238,0.4)]'>D</div>
+            <span className="text-lg sm:text-xl font-extrabold tracking-tighter glow-cyan italic text-white whitespace-nowrap">AI DEBUG DETECTIVE</span>
+            <span className='hidden sm:inline-block px-2.5 py-1 rounded border border-cyan-500/50 text-[10px] text-cyan-400 uppercase font-mono tracking-widest whitespace-nowrap'>Case Mode: Alpha</span>
           </div>
           <button 
             onClick={handleLogin}
             disabled={isLoggingIn}
-            className="px-5 py-2 text-sm font-bold text-white bg-cyan-600/20 border border-cyan-500/50 rounded hover:bg-cyan-500/30 transition-all duration-200 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            aria-label="Agent login"
+            className="shrink-0 px-4 md:px-5 py-2 text-xs sm:text-sm font-bold text-white bg-cyan-600/20 border border-cyan-500/50 rounded hover:bg-cyan-500/30 transition-all duration-200 uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isLoggingIn && <Loader2 size={14} className="animate-spin" />}
             Agent Login
