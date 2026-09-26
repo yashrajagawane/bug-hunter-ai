@@ -90,7 +90,7 @@ export function LandingPage() {
             System initialized. Awaiting detective...
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tighter leading-tight italic">
+          <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-[0.03em] leading-tight italic">
             EVERY BUG HAS A STORY.<br />
             <span className="glow-cyan text-cyan-400">
               BECOME THE DETECTIVE.
@@ -105,7 +105,7 @@ export function LandingPage() {
             <button 
               onClick={handleLogin}
               disabled={isLoggingIn}
-              className="group flex items-center gap-2 px-8 py-4 bg-cyan-600 text-white rounded font-extrabold text-lg uppercase tracking-widest hover:bg-cyan-500 transition-all duration-300 shadow-[0_10px_20px_rgba(8,145,178,0.3)] transform hover:-translate-y-1 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              className="group flex items-center gap-2 px-6 py-3 bg-cyan-600 text-white rounded font-extrabold text-base uppercase tracking-widest hover:bg-cyan-500 transition-all duration-300 shadow-[0_10px_20px_rgba(8,145,178,0.3)] transform hover:-translate-y-1 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
             >
               {isLoggingIn
                 ? <><Loader2 size={20} className="animate-spin" /> Authenticating...</>
@@ -115,7 +115,7 @@ export function LandingPage() {
             <button
               onClick={handleLogin}
               disabled={isLoggingIn}
-              className="px-8 py-4 bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] text-slate-200 rounded font-bold text-lg uppercase tracking-widest hover:border-cyan-500 hover:text-cyan-400 hover:bg-white/[0.05] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-white/[0.02] backdrop-blur-xl border border-white/[0.05] text-slate-200 rounded font-bold text-base uppercase tracking-widest hover:border-cyan-500 hover:text-cyan-400 hover:bg-white/[0.05] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Explore Cases
             </button>
