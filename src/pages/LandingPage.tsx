@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithRedirect } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Terminal, ShieldAlert, Cpu, Loader2 } from 'lucide-react';
@@ -14,11 +14,13 @@ export function LandingPage() {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
     try {
-      await signInWithPopup(auth, googleAuthProvider);
-      navigate('/dashboard');
+      await signInWithRedirect(auth, googleAuthProvider);
     } catch (error) {
       console.error("Login failed:", error);
+      setIsLoggingIn(false);
     } finally {
+      // Redirect authentication normally leaves the page before this runs.
+      // Keep the fallback for immediate Firebase configuration errors.
       setIsLoggingIn(false);
     }
   };
