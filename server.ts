@@ -177,17 +177,35 @@ async function startServer() {
       const pistonLang = language.toLowerCase() === 'c++' ? 'cpp' : language.toLowerCase();
       const fileExt = extensionMap[pistonLang] || pistonLang;
 
-      const response = await fetch('https://emkc.org/api/v2/piston/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          language: pistonLang,
-          version: versionMap[pistonLang] || '*',
-          files: [{ name: `main.${fileExt}`, content: code }]
-        })
-      });
-      
-      const data = await response.json();
+      let data: any;
+      try {
+        const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            language: pistonLang,
+            version: versionMap[pistonLang] || '*',
+            files: [{ name: `main.${fileExt}`, content: code }]
+          })
+        });
+        data = await response.json();
+      } catch (pistonError) {
+        console.warn('Piston API unavailable, falling back to Gemini Code Simulator:', pistonError);
+        const simulationPrompt = `You are a strict terminal compiler and executor. 
+I am going to provide you with ${language} code.
+If there are syntax errors, output the realistic compiler/interpreter error.
+If there are runtime errors, output the realistic runtime error trace.
+If the code runs successfully, output ONLY the exact standard output (stdout) that would be printed to the terminal.
+Do not add any markdown, explanations, or conversational text. ONLY output the terminal text.
+
+Code to execute:
+\`\`\`
+${code}
+\`\`\`
+`;
+        const simRes = await callGeminiWithRetry("gemini-3.6-flash", simulationPrompt);
+        return res.json({ run: { output: simRes.text || "No output" } });
+      }
       
       // If Piston is blocked/whitelisted, fallback to Gemini simulating the output
       if (data.message && data.message.includes("whitelist")) {
