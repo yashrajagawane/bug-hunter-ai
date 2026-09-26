@@ -174,8 +174,8 @@ export function Profile() {
         </button>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+      <main className="w-full max-w-6xl mx-auto px-6 py-12">
+        <div className="flex flex-col lg:flex-row gap-8 items-center">
           
           {/* Left: Identity Card */}
           <div className="w-full lg:w-1/3 space-y-6 relative z-10 shrink-0">
@@ -241,7 +241,7 @@ export function Profile() {
           </div>
           
           {/* Right: Heatmap + Recent Activity */}
-          <div className="flex-1 w-full relative z-10">
+          <div className="flex-1 min-w-0 w-full relative z-10">
             {/* Real heatmap from Firestore attempts */}
             <ActivityHeatmap attempts={attempts} />
 
