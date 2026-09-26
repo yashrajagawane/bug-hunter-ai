@@ -83,7 +83,7 @@ export function LandingPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-6 pt-24 pb-32 relative z-10">
+      <main className="max-w-7xl mx-auto px-6 pt-10 md:pt-14 pb-32 relative z-10">
         <div className="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded border border-purple-500/30 text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-4 bg-purple-500/10">
             <Terminal size={14} />
