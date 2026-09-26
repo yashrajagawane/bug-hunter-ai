@@ -175,7 +175,7 @@ export function Profile() {
       </nav>
 
       <main className="w-full max-w-6xl mx-auto px-6 py-12">
-        <div className="flex flex-col lg:flex-row gap-8 items-center">
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
           
           {/* Left: Identity Card */}
           <div className="w-full lg:w-1/3 space-y-6 relative z-10 shrink-0">
