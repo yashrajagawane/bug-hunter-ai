@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { signInWithRedirect } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Terminal, ShieldAlert, Cpu, Loader2 } from 'lucide-react';
@@ -9,18 +9,28 @@ export function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+  const [loginError, setLoginError] = React.useState<string | null>(null);
 
   const handleLogin = async () => {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
+    setLoginError(null);
     try {
-      await signInWithRedirect(auth, googleAuthProvider);
+      await signInWithPopup(auth, googleAuthProvider);
+      navigate('/dashboard');
     } catch (error) {
       console.error("Login failed:", error);
-      setIsLoggingIn(false);
+      const code = error instanceof Error && 'code' in error
+        ? String((error as Error & { code?: string }).code)
+        : '';
+
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        await signInWithRedirect(auth, googleAuthProvider);
+        return;
+      }
+
+      setLoginError(code ? `Login failed (${code}). Check Firebase Authentication settings.` : 'Login failed. Please try again.');
     } finally {
-      // Redirect authentication normally leaves the page before this runs.
-      // Keep the fallback for immediate Firebase configuration errors.
       setIsLoggingIn(false);
     }
   };
@@ -56,6 +66,9 @@ export function LandingPage() {
             {isLoggingIn && <Loader2 size={14} className="animate-spin" />}
             Agent Login
           </button>
+          {loginError && (
+            <p role="alert" className="mt-3 max-w-md text-sm text-red-400">{loginError}</p>
+          )}
         </div>
       </nav>
 
