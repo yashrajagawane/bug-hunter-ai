@@ -63,6 +63,17 @@ service cloud.firestore {
         && data.coinReward is number && data.coinReward >= 0 && data.coinReward <= 10000;
     }
 
+    // The built-in cases are seeded by the first authenticated visitor.
+    // Only these fixed IDs may be created by a client; custom case
+    // management remains restricted to admins below.
+    function isSeedCaseId(caseId) {
+      return caseId in [
+        'case-001', 'case-002', 'case-003', 'case-004',
+        'case-005', 'case-006', 'case-007', 'case-008',
+        'case-009', 'case-010', 'case-011', 'case-012'
+      ];
+    }
+
     // ─────────────────────────────────────────────
     // Attempt Validation
     // ─────────────────────────────────────────────
@@ -107,8 +118,10 @@ service cloud.firestore {
     match /cases/{caseId} {
       // Any authenticated user can read cases
       allow read: if isSignedIn();
-      // Fix H6: Only admins can create/update/delete cases, and only valid ones
-      allow create: if isAdmin() && isValidCase(incoming());
+      // Allow the fixed built-in seed cases to be created once by an
+      // authenticated user. Custom case management remains admin-only.
+      allow create: if isValidCase(incoming())
+        && ((isAdmin()) || isSeedCaseId(caseId));
       allow update: if isAdmin() && isValidCase(incoming());
       allow delete: if isAdmin();
     }
