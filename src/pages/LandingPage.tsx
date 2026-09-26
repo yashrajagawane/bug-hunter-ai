@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import { getRedirectResult, signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Terminal, ShieldAlert, Cpu, Loader2 } from 'lucide-react';
@@ -40,6 +40,17 @@ export function LandingPage() {
       navigate('/dashboard');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    getRedirectResult(auth).catch((error) => {
+      console.error("Redirect login failed:", error);
+      const code = error instanceof Error && 'code' in error
+        ? String((error as Error & { code?: string }).code)
+        : '';
+      setLoginError(code ? `Login failed (${code}). Check Firebase Authentication settings.` : 'Login failed. Please try again.');
+      setIsLoggingIn(false);
+    });
+  }, []);
 
   if (user) {
     return null;
